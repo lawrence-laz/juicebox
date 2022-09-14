@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30114.105
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C87C0F8F-90A7-442F-A82D-51A59E77561B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Juicebox", "src\Juicebox\Juicebox.csproj", "{DFB4C6D2-3EA8-44D3-BBCA-2CF97FEF9526}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{C9E3E502-7D0B-43EE-B386-55DE8CF90ECE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Breakout", "examples\Breakout\Breakout.csproj", "{95D9395D-5830-4088-A10A-1B301716CD7A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DFB4C6D2-3EA8-44D3-BBCA-2CF97FEF9526}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DFB4C6D2-3EA8-44D3-BBCA-2CF97FEF9526}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DFB4C6D2-3EA8-44D3-BBCA-2CF97FEF9526}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DFB4C6D2-3EA8-44D3-BBCA-2CF97FEF9526}.Release|Any CPU.Build.0 = Release|Any CPU
+		{95D9395D-5830-4088-A10A-1B301716CD7A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{95D9395D-5830-4088-A10A-1B301716CD7A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{95D9395D-5830-4088-A10A-1B301716CD7A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{95D9395D-5830-4088-A10A-1B301716CD7A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{DFB4C6D2-3EA8-44D3-BBCA-2CF97FEF9526} = {C87C0F8F-90A7-442F-A82D-51A59E77561B}
+		{95D9395D-5830-4088-A10A-1B301716CD7A} = {C9E3E502-7D0B-43EE-B386-55DE8CF90ECE}
+	EndGlobalSection
+EndGlobal

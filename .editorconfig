@@ -1,0 +1,7 @@
+[*.{cs,vb}]
+dotnet_diagnostic.IDE0008.severity = none
+dotnet_diagnostic.IDE0022.severity = none
+
+csharp_style_expression_bodied_operators = when_on_single_line
+csharp_style_namespace_declarations = file_scoped:warning
+
