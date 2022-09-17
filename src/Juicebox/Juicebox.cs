@@ -21,21 +21,36 @@ public class Vector2
 
 public class Entity
 {
+    private readonly List<IComponent> _components = new();
+
     public string Name { get; set; } = string.Empty;
     public Vector2 Position { get; set; } = new(0, 0);
 
     public Sprite? Sprite { get; set; }
+    public IEnumerable<IComponent> Components => _components;
 
     public Entity(string name)
     {
         Name = name;
     }
+
+    public Entity WithComponent(IComponent component)
+    {
+        _components.Add(component);
+        return this;
+    }
+
+    public T? GetComponent<T>() => _components.OfType<T>().FirstOrDefault();
+}
+
+public static class TextEntityExtensions
+{
+    public static Entity WithText(this Entity entity, string text, string font) => entity.WithComponent(Juicebox._instance.NewText(text, font));
 }
 
 public static class EventEntityExtensions
 {
     public static OnEachFrameBuilder OnEachFrame(this Entity entity) => new(entity);
-
     public record struct OnEachFrameBuilder(Entity Entity);
     public delegate void OnEachFrameHandler(Entity entity);
     public static Entity Do(this OnEachFrameBuilder builder, OnEachFrameHandler handler)
@@ -45,18 +60,15 @@ public static class EventEntityExtensions
     }
 
     public static OnHitOtherConditionBuilder OnHit(this Entity entity) => new(entity, null);
-
     public delegate bool OnHitOtherCondition(Entity other);
     public record struct OnHitOtherConditionBuilder(Entity Entity, OnHitOtherCondition? Condition);
     public static OnHitOtherConditionBuilder OnHit(this Entity entity, OnHitOtherCondition condition) => new(entity, condition);
-
     public delegate void OnHitHandler();
     public static Entity Do(this OnHitOtherConditionBuilder builder, OnHitHandler handler)
     {
         Juicebox._instance._events.OnHitEventHandlers.Add(new JuiceboxEventHanlder(builder.Entity, builder.Condition, handler));
         return builder.Entity;
     }
-
     public delegate void OnHitThisAndOtherHandler(Entity @this, Entity other);
     public static Entity Do(this OnHitOtherConditionBuilder builder, OnHitThisAndOtherHandler handler)
     {
@@ -73,6 +85,16 @@ public class Sprite
     {
         Path = path;
     }
+}
+
+public interface IComponent
+{
+}
+
+public class Text : IComponent
+{
+    public string Value { get; set; } = string.Empty;
+    public string Font { get; set; } = string.Empty;
 }
 
 public static class SpriteEntityExtensions
@@ -125,11 +147,19 @@ public class JuiceboxInstance
 {
     public readonly Dictionary<string, Entity> _entities = new();
     public readonly Dictionary<string, Sprite> _sprites = new();
+    public readonly List<Text> _texts = new();
     internal readonly JuiceboxInput _input = new();
     public readonly JuiceboxEvents _events = new();
 
     public Entity NewEntity(string name) => _entities[name] = new(name);
     public Sprite GetSprite(string path) => _sprites.TryGetValue(path, out var sprite) ? sprite : (_sprites[path] = new(path));
+    public Text NewText(string text, string font)
+    {
+        var textComponent = new Text { Value = text, Font = font };
+        _texts.Add(textComponent);
+
+        return textComponent;
+    }
 }
 
 public static class Juicebox
