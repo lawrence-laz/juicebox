@@ -1,15 +1,20 @@
 ﻿using static SDL2.SDL;
 using static SDL2.SDL_image;
 using static SDL2.SDL_ttf;
+using static SDL2.SDL_gfx;
 using JuiceboxEngine;
+using SDL2;
 
 Console.WriteLine("Hello, World!");
 
-var speed = 5;
+var speed = 200;
 
 var ball = Juicebox.NewEntity("ball")
     .WithSprite("./resources/ball.png")
-    .OnEachFrame().Do(entity => entity.Position += speed * Juicebox.Input.Joystick);
+    .OnEachFrame().Do(entity => entity.Position += speed * Juicebox.Input.Joystick * Juicebox.Time.Delta)
+    .OnEachFrame().Do(entity => Juicebox.DrawCircle(entity.Position, 50, Color.Green))
+    .OnEachFrame().Do(entity => Juicebox.DrawLine(Vector2.Zero, entity.Position, Color.Blue))
+    .WithBody();
 // .OnEachFrame().Do(ball => ball.Position += ball.Movement.Speed * ball.Movement.Direction)
 // .OnHit(other => other.Name == "ground").Do(() => Juicebox.Restart())
 // .OnHit(other => other.Tags.Contains("bouncy")).Do((bouncy, ball, hit) => ball.Movement.Direction.BounceOff(bouncy.Position));
@@ -32,6 +37,15 @@ if (TTF_Init() != 0)
 var window = SDL_CreateWindow("Breakout by Juicebox", 0, 0, 512, 256, SDL_WindowFlags.SDL_WINDOW_OPENGL);
 var renderer = SDL_CreateRenderer(window, -1, SDL_RendererFlags.SDL_RENDERER_ACCELERATED);
 
+Juicebox.Gizmos.RenderCircle = (circle, color) =>
+{
+    SDL_gfx.circleRGBA(renderer, (short)circle.Center.X, (short)circle.Center.Y, (short)circle.Radius, color.R, color.G, color.B, color.A);
+};
+
+Juicebox.Gizmos.RenderLine = (line, color) =>
+{
+    SDL_gfx.lineRGBA(renderer, (short)line.Start.X, (short)line.Start.Y, (short)line.End.X, (short)line.End.Y, color.R, color.G, color.B, color.A);
+};
 
 var surface = IMG_Load("./resources/01-Breakout-Tiles.png");
 var texture = SDL_CreateTextureFromSurface(renderer, surface);
@@ -77,8 +91,10 @@ var destination = new SDL_Rect
     h = height,
 };
 
+Juicebox.Time.Start();
 while (true)
 {
+    Juicebox.Time.OnUpdate();
     while (SDL_PollEvent(out SDL_Event e) != 0)
     {
         if (e.key.keysym.scancode == SDL_Scancode.SDL_SCANCODE_ESCAPE)
@@ -89,8 +105,11 @@ while (true)
         Juicebox.Input.AcceptEvent(e);
     }
 
+    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF);
     SDL_RenderClear(renderer);
     SDL_RenderCopy(renderer, texture, IntPtr.Zero, ref destination);
+
+    Juicebox.Physics.OnUpdate(Juicebox.Time.Delta);
 
     foreach (var handler in Juicebox._instance._events.OnEachFrameEventHandlers)
     {
@@ -119,6 +138,8 @@ while (true)
         }
     }
 
+    Juicebox.Gizmos.Update(Juicebox.Time.Delta);
+
     SDL_RenderPresent(renderer);
     SDL_Delay(1000 / 60);
 }
@@ -129,3 +150,4 @@ SDL_DestroyTexture(texture);
 SDL_DestroyRenderer(renderer);
 SDL_DestroyWindow(window);
 SDL_Quit();
+
