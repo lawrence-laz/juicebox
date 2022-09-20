@@ -7,11 +7,17 @@ using SDL2;
 
 Console.WriteLine("Hello, World!");
 
-var speed = 200;
-
 var ball = Juicebox.NewEntity("ball")
-    .WithSprite("./resources/ball.png")
-    .OnEachFrame().Do(entity => entity.Position += speed * Juicebox.Input.Joystick * Juicebox.Time.Delta)
+    .WithSprite("./resources/ball.png", sprite => sprite.Center = sprite.Rectangle.Center)
+    .OnEachFrame().Do(entity =>
+    {
+        if (Juicebox.Input.IsDown(MouseButton.Left) || Juicebox.Input.IsDown(KeyboardButton.Space) || Juicebox.Input.IsUp(KeyboardButton.Space))
+        {
+            entity.Position = Juicebox.Input.Pointer;
+        }
+    })
+    // .OnEachFrame().Do(entity => entity.Position = Juicebox.Input.Pointer)
+    // .OnEachFrame().Do(entity => entity.Position += speed * Juicebox.Input.Joystick * Juicebox.Time.Delta)
     .OnEachFrame().Do(entity => Juicebox.DrawCircle(entity.Position, 50, Color.Green))
     .OnEachFrame().Do(entity => Juicebox.DrawLine(Vector2.Zero, entity.Position, Color.Blue))
     .WithBody();
@@ -58,9 +64,14 @@ foreach (var sprite in Juicebox._instance._sprites.Values)
     var spriteSurface = IMG_Load(sprite.Path);
     var spriteTexture = SDL_CreateTextureFromSurface(renderer, spriteSurface);
     SDL_QueryTexture(spriteTexture, out var spriteFormat, out var spriteAccess, out var spriteWidth, out var spriteHeight);
+    sprite.Rectangle.Size = new(spriteWidth, spriteHeight);
     var spriteTargetRect = new SDL_Rect { x = 0, y = 0, w = spriteWidth, h = spriteHeight };
     sprites[sprite] = (spriteTexture, spriteTargetRect);
     SDL_FreeSurface(spriteSurface);
+    if (Juicebox._instance._spriteConfigurations.TryGetValue(sprite, out var configureSprite))
+    {
+        configureSprite(sprite);
+    }
 }
 
 // Load texts
@@ -121,11 +132,11 @@ while (true)
         // Sprite
         if (entity.Sprite is not null)
         {
-
-            var rect = sprites[entity.Sprite].TargetRect;
-            rect.x = (int)entity.Position.X;
-            rect.y = (int)entity.Position.Y;
-            SDL_RenderCopy(renderer, sprites[entity.Sprite].Texture, IntPtr.Zero, ref rect);
+            var (spriteTexture, targetRect) = sprites[entity.Sprite];
+            targetRect.x = (int)(entity.Position.X - entity.Sprite.Center.X);
+            targetRect.y = (int)(entity.Position.Y - entity.Sprite.Center.Y);
+            var center = new SDL_Point { x = (int)entity.Sprite.Center.X, y = (int)entity.Sprite.Center.Y };
+            SDL_RenderCopyEx(renderer, spriteTexture, IntPtr.Zero, ref targetRect, entity.Rotation, ref center, SDL_RendererFlip.SDL_FLIP_NONE);
         }
 
         // Text
@@ -139,6 +150,7 @@ while (true)
     }
 
     Juicebox.Gizmos.Update(Juicebox.Time.Delta);
+    Juicebox.Input.AfterUpdate();
 
     SDL_RenderPresent(renderer);
     SDL_Delay(1000 / 60);

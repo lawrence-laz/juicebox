@@ -1,8 +1,35 @@
 using System.Diagnostics;
+using System.Drawing;
 using System.Numerics;
+using System.Reflection;
 using static SDL2.SDL;
 
 namespace JuiceboxEngine;
+
+public class Camera
+{
+    public Vector2 Size { get; set; } = Vector2.Zero;
+}
+
+public class Rectangle
+{
+    public Vector2 Position { get; set; }
+    public Vector2 Size { get; set; }
+
+    public Vector2 TopLeft => Position;
+    public Vector2 TopMiddle => Position + (Vector2.Right * (Size.X / 2));
+    public Vector2 TopRight => Position + (Vector2.Right * Size.X);
+    public Vector2 BottomLeft => Position + (Vector2.Down * Size.Y);
+    public Vector2 BottomMiddle => Position + (Vector2.Down * Size.Y) + (Vector2.Right * (Size.X / 2));
+    public Vector2 BottomRight => Position + Size;
+    public Vector2 Center => Position + (Size / 2);
+
+    public Rectangle(Vector2 position, Vector2 size)
+    {
+        Position = position;
+        Size = size;
+    }
+}
 
 public class Vector2
 {
@@ -27,6 +54,7 @@ public class Vector2
     public static Vector2 operator -(Vector2 a, Vector2 b) => new(a.X - b.X, a.Y - b.Y);
     public static Vector2 operator *(Vector2 a, int b) => new(a.X * b, a.Y * b);
     public static Vector2 operator *(int b, Vector2 a) => new(a.X * b, a.Y * b);
+    public static Vector2 operator /(Vector2 a, int b) => new(a.X / b, a.Y / b);
     public static Vector2 operator *(Vector2 a, float b) => new(a.X * b, a.Y * b);
     public static Vector2 operator *(float b, Vector2 a) => new(a.X * b, a.Y * b);
 }
@@ -37,6 +65,7 @@ public class Entity
 
     public string Name { get; set; } = string.Empty;
     public Vector2 Position { get; set; } = new(0, 0);
+    public double Rotation { get; set; }
 
     public Sprite? Sprite { get; set; }
     public IEnumerable<IComponent> Components => _components;
@@ -97,6 +126,8 @@ public static class EventEntityExtensions
 public class Sprite
 {
     public string Path { get; }
+    public Vector2 Center { get; set; } = Vector2.Zero;
+    public Rectangle Rectangle { get; set; } = new(Vector2.Zero, Vector2.Zero);
 
     public Sprite(string path)
     {
@@ -121,32 +152,208 @@ public static class SpriteEntityExtensions
         entity.Sprite = Juicebox.GetSprite(path);
         return entity;
     }
+
+    public static Entity WithSprite(this Entity entity, string path, Action<Sprite> configureSprite)
+    {
+        if (configureSprite is null)
+        {
+            throw new ArgumentNullException(nameof(configureSprite));
+        }
+
+        entity.WithSprite(path);
+        Juicebox._instance._spriteConfigurations[entity.Sprite] = configureSprite;
+        return entity;
+    }
+}
+
+public enum MouseButton
+{
+    None = 0,
+    Left, Right, Middle
+}
+
+public enum KeyboardButton
+{
+    None = 0,
+    Escape, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
+    Backquote, Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9, Key0, Minus, Equals,
+    Tab, Q, W, E, R, T, Y, U, I, O, P, LeftBracket, RightBracket, Backslash,
+    Capslock, A, S, D, F, G, H, J, K, L, Colon, Quote, Enter,
+    LeftShift, Z, X, C, V, B, N, M, Comma, Period, Slash, RightShift,
+    LeftCtrl, LeftAlt, Space, RightAlt, RightCtrl,
+    Up, Left, Down, Right
 }
 
 public class JuiceboxInput
 {
-    public Vector2 Joystick { get; } = new(0, 0);
+    public Vector2 Joystick { get; } = Vector2.Zero;
+    public Vector2 Pointer { get; } = Vector2.Zero;
+    public HashSet<MouseButton> _isMouseButtonPressed = new();
+    public HashSet<MouseButton> _isMouseButtonDown = new();
+    public HashSet<MouseButton> _isMouseButtonUp = new();
+    public HashSet<KeyboardButton> _isKeyboardButtonPressed = new();
+    public HashSet<KeyboardButton> _isKeyboardButtonDown = new();
+    public HashSet<KeyboardButton> _isKeyboardButtonUp = new();
+
+    public static MouseButton GetMouseButton(uint button) => button switch
+    {
+        SDL_BUTTON_LEFT => MouseButton.Left,
+        SDL_BUTTON_MIDDLE => MouseButton.Middle,
+        SDL_BUTTON_RIGHT => MouseButton.Right,
+        _ => MouseButton.None,
+    };
+
+    public static KeyboardButton GetKeyboardButton(SDL_Keycode keycode) => keycode switch
+    {
+        SDL_Keycode.SDLK_ESCAPE => KeyboardButton.Escape,
+        SDL_Keycode.SDLK_F1 => KeyboardButton.F1,
+        SDL_Keycode.SDLK_F2 => KeyboardButton.F2,
+        SDL_Keycode.SDLK_F3 => KeyboardButton.F3,
+        SDL_Keycode.SDLK_F4 => KeyboardButton.F4,
+        SDL_Keycode.SDLK_F5 => KeyboardButton.F5,
+        SDL_Keycode.SDLK_F6 => KeyboardButton.F6,
+        SDL_Keycode.SDLK_F7 => KeyboardButton.F7,
+        SDL_Keycode.SDLK_F8 => KeyboardButton.F8,
+        SDL_Keycode.SDLK_F9 => KeyboardButton.F9,
+        SDL_Keycode.SDLK_F10 => KeyboardButton.F10,
+        SDL_Keycode.SDLK_F11 => KeyboardButton.F11,
+        SDL_Keycode.SDLK_F12 => KeyboardButton.F12,
+        SDL_Keycode.SDLK_BACKQUOTE => KeyboardButton.Backquote,
+        SDL_Keycode.SDLK_0 => KeyboardButton.Key0,
+        SDL_Keycode.SDLK_1 => KeyboardButton.Key1,
+        SDL_Keycode.SDLK_2 => KeyboardButton.Key2,
+        SDL_Keycode.SDLK_3 => KeyboardButton.Key3,
+        SDL_Keycode.SDLK_4 => KeyboardButton.Key4,
+        SDL_Keycode.SDLK_5 => KeyboardButton.Key5,
+        SDL_Keycode.SDLK_6 => KeyboardButton.Key6,
+        SDL_Keycode.SDLK_7 => KeyboardButton.Key7,
+        SDL_Keycode.SDLK_8 => KeyboardButton.Key8,
+        SDL_Keycode.SDLK_9 => KeyboardButton.Key9,
+        SDL_Keycode.SDLK_MINUS => KeyboardButton.Minus,
+        SDL_Keycode.SDLK_EQUALS => KeyboardButton.Equals,
+        SDL_Keycode.SDLK_TAB => KeyboardButton.Tab,
+        SDL_Keycode.SDLK_q => KeyboardButton.Q,
+        SDL_Keycode.SDLK_w => KeyboardButton.W,
+        SDL_Keycode.SDLK_e => KeyboardButton.E,
+        SDL_Keycode.SDLK_r => KeyboardButton.R,
+        SDL_Keycode.SDLK_t => KeyboardButton.T,
+        SDL_Keycode.SDLK_y => KeyboardButton.Y,
+        SDL_Keycode.SDLK_u => KeyboardButton.U,
+        SDL_Keycode.SDLK_i => KeyboardButton.I,
+        SDL_Keycode.SDLK_o => KeyboardButton.O,
+        SDL_Keycode.SDLK_p => KeyboardButton.P,
+        SDL_Keycode.SDLK_LEFTBRACKET => KeyboardButton.LeftBracket,
+        SDL_Keycode.SDLK_RIGHTBRACKET => KeyboardButton.RightBracket,
+        SDL_Keycode.SDLK_BACKSLASH => KeyboardButton.Backslash,
+        SDL_Keycode.SDLK_CAPSLOCK => KeyboardButton.Capslock,
+        SDL_Keycode.SDLK_a => KeyboardButton.A,
+        SDL_Keycode.SDLK_s => KeyboardButton.S,
+        SDL_Keycode.SDLK_d => KeyboardButton.D,
+        SDL_Keycode.SDLK_f => KeyboardButton.F,
+        SDL_Keycode.SDLK_h => KeyboardButton.H,
+        SDL_Keycode.SDLK_j => KeyboardButton.J,
+        SDL_Keycode.SDLK_k => KeyboardButton.K,
+        SDL_Keycode.SDLK_l => KeyboardButton.L,
+        SDL_Keycode.SDLK_COLON => KeyboardButton.Colon,
+        SDL_Keycode.SDLK_QUOTE => KeyboardButton.Quote,
+        SDL_Keycode.SDLK_RETURN => KeyboardButton.Enter,
+        SDL_Keycode.SDLK_LSHIFT => KeyboardButton.LeftShift,
+        SDL_Keycode.SDLK_z => KeyboardButton.Z,
+        SDL_Keycode.SDLK_x => KeyboardButton.X,
+        SDL_Keycode.SDLK_c => KeyboardButton.C,
+        SDL_Keycode.SDLK_v => KeyboardButton.V,
+        SDL_Keycode.SDLK_b => KeyboardButton.B,
+        SDL_Keycode.SDLK_n => KeyboardButton.N,
+        SDL_Keycode.SDLK_m => KeyboardButton.M,
+        SDL_Keycode.SDLK_COMMA => KeyboardButton.Comma,
+        SDL_Keycode.SDLK_PERIOD => KeyboardButton.Period,
+        SDL_Keycode.SDLK_SLASH => KeyboardButton.Slash,
+        SDL_Keycode.SDLK_RSHIFT => KeyboardButton.RightShift,
+        SDL_Keycode.SDLK_LCTRL => KeyboardButton.LeftCtrl,
+        SDL_Keycode.SDLK_LALT => KeyboardButton.LeftAlt,
+        SDL_Keycode.SDLK_SPACE => KeyboardButton.Space,
+        SDL_Keycode.SDLK_RALT => KeyboardButton.RightAlt,
+        SDL_Keycode.SDLK_RCTRL => KeyboardButton.RightCtrl,
+        SDL_Keycode.SDLK_UP => KeyboardButton.Up,
+        SDL_Keycode.SDLK_LEFT => KeyboardButton.Left,
+        SDL_Keycode.SDLK_DOWN => KeyboardButton.Down,
+        SDL_Keycode.SDLK_RIGHT => KeyboardButton.Right,
+        _ => KeyboardButton.None,
+    };
+
+    public void AfterUpdate()
+    {
+        _isKeyboardButtonDown.Clear();
+        _isKeyboardButtonUp.Clear();
+        _isMouseButtonDown.Clear();
+        _isMouseButtonUp.Clear();
+    }
+
+    public bool IsPressed(KeyboardButton button) => _isKeyboardButtonPressed.Contains(button);
+    public bool IsDown(KeyboardButton button) => _isKeyboardButtonDown.Contains(button);
+    public bool IsUp(KeyboardButton button) => _isKeyboardButtonUp.Contains(button);
+
+    public bool IsPressed(MouseButton button) => _isMouseButtonPressed.Contains(button);
+    public bool IsDown(MouseButton button) => _isMouseButtonDown.Contains(button);
+    public bool IsUp(MouseButton button) => _isMouseButtonUp.Contains(button);
 
     public void AcceptEvent(SDL_Event @event)
     {
-        if (@event.key.repeat == 1)
+        if (@event.type is SDL_EventType.SDL_MOUSEMOTION)
         {
-            return;
+            (Pointer.X, Pointer.Y) = @event switch
+            {
+                { type: SDL_EventType.SDL_MOUSEMOTION } => (@event.motion.x, @event.motion.y),
+                _ => (Pointer.X, Pointer.Y),
+            };
         }
-
-        (Joystick.X, Joystick.Y) = @event switch
+        else if (@event.type is SDL_EventType.SDL_MOUSEBUTTONDOWN)
         {
-            { type: SDL_EventType.SDL_KEYDOWN, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_LEFT } => (Joystick.X - 1, Joystick.Y),
-            { type: SDL_EventType.SDL_KEYDOWN, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_RIGHT } => (Joystick.X + 1, Joystick.Y),
-            { type: SDL_EventType.SDL_KEYDOWN, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_UP } => (Joystick.X, Joystick.Y - 1),
-            { type: SDL_EventType.SDL_KEYDOWN, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_DOWN } => (Joystick.X, Joystick.Y + 1),
+            var button = GetMouseButton(@event.button.button);
+            _isMouseButtonDown.Add(button);
+            _isMouseButtonPressed.Add(button);
+        }
+        else if (@event.type is SDL_EventType.SDL_MOUSEBUTTONUP)
+        {
+            var button = GetMouseButton(@event.button.button);
+            _isMouseButtonUp.Add(button);
+            _isMouseButtonPressed.Remove(button);
+        }
+        else if (@event.type is SDL_EventType.SDL_KEYDOWN or SDL_EventType.SDL_KEYUP)
+        {
+            if (@event.key.repeat == 1)
+            {
+                return;
+            }
 
-            { type: SDL_EventType.SDL_KEYUP, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_LEFT } => (Joystick.X + 1, Joystick.Y),
-            { type: SDL_EventType.SDL_KEYUP, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_RIGHT } => (Joystick.X - 1, Joystick.Y),
-            { type: SDL_EventType.SDL_KEYUP, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_UP } => (Joystick.X, Joystick.Y + 1),
-            { type: SDL_EventType.SDL_KEYUP, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_DOWN } => (Joystick.X, Joystick.Y - 1),
-            _ => (Joystick.X, Joystick.Y),
-        };
+            if (@event.type is SDL_EventType.SDL_KEYDOWN)
+            {
+                var button = GetKeyboardButton(@event.key.keysym.sym);
+                _isKeyboardButtonDown.Add(button);
+                _isKeyboardButtonPressed.Add(button);
+            }
+            else if (@event.type is SDL_EventType.SDL_KEYUP)
+            {
+
+                var button = GetKeyboardButton(@event.key.keysym.sym);
+                _isKeyboardButtonUp.Add(button);
+                _isKeyboardButtonPressed.Remove(button);
+            }
+
+            (Joystick.X, Joystick.Y) = @event switch
+            {
+                { type: SDL_EventType.SDL_KEYDOWN, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_LEFT } => (Joystick.X - 1, Joystick.Y),
+                { type: SDL_EventType.SDL_KEYDOWN, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_RIGHT } => (Joystick.X + 1, Joystick.Y),
+                { type: SDL_EventType.SDL_KEYDOWN, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_UP } => (Joystick.X, Joystick.Y - 1),
+                { type: SDL_EventType.SDL_KEYDOWN, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_DOWN } => (Joystick.X, Joystick.Y + 1),
+
+                { type: SDL_EventType.SDL_KEYUP, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_LEFT } => (Joystick.X + 1, Joystick.Y),
+                { type: SDL_EventType.SDL_KEYUP, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_RIGHT } => (Joystick.X - 1, Joystick.Y),
+                { type: SDL_EventType.SDL_KEYUP, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_UP } => (Joystick.X, Joystick.Y + 1),
+                { type: SDL_EventType.SDL_KEYUP, key.keysym.scancode: SDL_Scancode.SDL_SCANCODE_DOWN } => (Joystick.X, Joystick.Y - 1),
+                _ => (Joystick.X, Joystick.Y),
+            };
+        }
     }
 }
 
@@ -300,12 +507,15 @@ public class JuiceboxInstance
 {
     public readonly Dictionary<string, Entity> _entities = new();
     public readonly Dictionary<string, Sprite> _sprites = new();
+    public readonly Dictionary<Sprite, Action<Sprite>> _spriteConfigurations = new();
+
     public readonly List<Text> _texts = new();
     internal readonly JuiceboxInput _input = new();
     public readonly JuiceboxEvents _events = new();
     public readonly Time _time = new();
     public readonly Physics _physics = new();
     public readonly Gizmos _gizmos = new();
+    public readonly Camera _camera = new();
 
     public Entity NewEntity(string name) => _entities[name] = new(name);
     public Sprite GetSprite(string path) => _sprites.TryGetValue(path, out var sprite) ? sprite : (_sprites[path] = new(path));
@@ -326,6 +536,7 @@ public static class Juicebox
     public static Time Time => _instance._time;
     public static Physics Physics => _instance._physics;
     public static Gizmos Gizmos => _instance._gizmos;
+    public static Camera Camera => _instance._camera;
 
     public static Entity NewEntity(string name) => _instance.NewEntity(name);
     public static Sprite GetSprite(string path) => _instance.GetSprite(path);
