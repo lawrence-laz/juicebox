@@ -69,8 +69,10 @@ public class Entity
     private readonly List<IComponent> _components = new();
 
     public string Name { get; set; } = string.Empty;
+    public List<string> Tags { get; } = new();
     public Vector2 Position { get; set; } = new(0, 0);
     public double Rotation { get; set; }
+    public bool IsActive { get; set; } = true;
 
     public Sprite? Sprite { get; set; }
     public IEnumerable<IComponent> Components => _components;
@@ -87,14 +89,26 @@ public class Entity
     }
 
     public T? GetComponent<T>() => _components.OfType<T>().FirstOrDefault();
+
+    public void Destroy()
+    {
+        IsActive = false;
+        Juicebox._instance._entities.Remove(Name);
+        foreach (var component in _components.OfType<IDisposable>())
+        {
+            component.Dispose();
+        }
+    }
 }
 
-public static class EntitySpriteExtensions
+public static class TagEntityExtensions
 {
-    public static Rectangle GetTargetRectangle(this Entity entity) =>
-        entity.Sprite is null
-            ? throw new InvalidOperationException($"Cannot {nameof(GetTargetRectangle)} on entity without a sprite.")
-            : entity.Sprite.Rectangle - entity.Sprite.Center + entity.Position;
+    public static Entity WithTags(this Entity entity, params string[] tags)
+    {
+        entity.Tags.Clear();
+        entity.Tags.AddRange(tags);
+        return entity;
+    }
 }
 
 public static class BodyEntityExtensions
@@ -104,7 +118,7 @@ public static class BodyEntityExtensions
 
 public static class TextEntityExtensions
 {
-    public static Entity WithText(this Entity entity, string text, string font) => entity.WithComponent(Juicebox._instance.NewText(text, font));
+    public static Entity WithText(this Entity entity, string text, string font) => entity.WithComponent(Juicebox._instance.NewText(entity, text, font));
 }
 
 public static class EventEntityExtensions
@@ -181,12 +195,25 @@ public class Sprite
 
 public interface IComponent
 {
+    public Entity Entity { get; init; }
 }
 
-public class Text : IComponent
+public class Text : IComponent, IDisposable
 {
     public string Value { get; set; } = string.Empty;
     public string Font { get; set; } = string.Empty;
+    public Entity Entity { get; init; }
+
+    public Text(Entity entity)
+    {
+        Entity = entity;
+    }
+
+    public void Dispose()
+    {
+        Juicebox._instance._texts.Remove(this);
+        GC.SuppressFinalize(this);
+    }
 }
 
 public static class SpriteEntityExtensions
@@ -208,6 +235,11 @@ public static class SpriteEntityExtensions
         Juicebox._instance._sprites._spriteConfigurations[entity.Sprite] = configureSprite;
         return entity;
     }
+
+    public static Rectangle GetTargetRectangle(this Entity entity) =>
+        entity.Sprite is null
+            ? throw new InvalidOperationException($"Cannot {nameof(GetTargetRectangle)} on entity without a sprite.")
+            : entity.Sprite.Rectangle - entity.Sprite.Center + entity.Position;
 }
 
 public enum MouseButton
@@ -513,6 +545,12 @@ public class Time
 public class Body : IComponent
 {
     public Vector2 Velocity { get; set; } = Vector2.Zero;
+    public Entity Entity { get; init; }
+
+    public Body(Entity entity)
+    {
+        Entity = entity;
+    }
 }
 
 public class Physics
@@ -521,7 +559,7 @@ public class Physics
 
     public Vector2 Gravity = Vector2.Down * 50;
 
-    public Body NewBody(Entity entity) => Bodies.AddAndReturnSelf((Entity: entity, Body: new())).Body;
+    public Body NewBody(Entity entity) => Bodies.AddAndReturnSelf((Entity: entity, Body: new(entity))).Body;
 
     public void OnUpdate(float delta)
     {
@@ -642,9 +680,9 @@ public class JuiceboxInstance
 
     public Entity NewEntity(string name) => _entities[name] = new(name);
     public Sprite GetSprite(string path) => _sprites._sprites.TryGetValue(path, out var sprite) ? sprite : (_sprites._sprites[path] = new(path));
-    public Text NewText(string text, string font)
+    public Text NewText(Entity entity, string text, string font)
     {
-        var textComponent = new Text { Value = text, Font = font };
+        var textComponent = new Text(entity) { Value = text, Font = font };
         _texts.Add(textComponent);
 
         return textComponent;
@@ -652,6 +690,11 @@ public class JuiceboxInstance
 
     public void Send<T>(T @event) => _events.Send(@event);
     public void Send<T>(Entity entity, T @event) => _events.Send(entity, @event);
+
+    internal Entity? FindEntityByName(string name) => _entities.GetValueOrDefault(name);
+    internal IEnumerable<T> FindComponents<T>() => _entities.Values.SelectMany(entity => entity.Components.OfType<T>()).ToList();
+    internal IEnumerable<Entity> FindEntitiesByTag(string tag) =>
+        _entities.Values.Where(entity => entity.Tags.Contains(tag, StringComparer.InvariantCultureIgnoreCase)).ToList();
 }
 
 public static class Juicebox
@@ -677,5 +720,10 @@ public static class Juicebox
     }
     public static void Send<T>(T @event) => _instance.Send(@event);
     public static void Send<T>(Entity entity, T @event) => _instance.Send(entity, @event);
+    public static Entity? FindEntityByName(string name) => _instance.FindEntityByName(name);
+    public static IEnumerable<Entity> FindEntitiesByTag(string tag) => _instance.FindEntitiesByTag(tag);
+    public static Entity? FindEntityByTag(string tag) => FindEntitiesByTag(tag).FirstOrDefault();
+    public static IEnumerable<T> FindComponents<T>() => _instance.FindComponents<T>();
+    public static T? FindComponent<T>() => FindComponents<T>().FirstOrDefault();
 }
 

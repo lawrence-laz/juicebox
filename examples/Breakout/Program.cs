@@ -27,7 +27,19 @@ var ball = Juicebox.NewEntity("ball")
 // .OnHit(other => other.Name == "ground").Do(() => Juicebox.Restart())
 // .OnHit(other => other.Tags.Contains("bouncy")).Do((bouncy, ball, hit) => ball.Movement.Direction.BounceOff(bouncy.Position));
 
+var destroyer = Juicebox.NewEntity("destroyer")
+.OnEachFrame().Do(entity =>
+{
+    if (Juicebox.Input.IsDown(KeyboardButton.D))
+    {
+        // Juicebox.FindEntityByName("title").Destroy();
+        // Juicebox.FindComponent<Text>().Entity.Destroy();
+        Juicebox.FindEntityByTag("gui").Destroy();
+    }
+});
+
 var title = Juicebox.NewEntity("title")
+    .WithTags("title-screen", "gui")
     .WithText("Breakout", font: "./resources/airstrike.ttf");
 
 SDL_SetHint(SDL_HINT_WINDOWS_DISABLE_THREAD_NAMING, "1");
