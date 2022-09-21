@@ -1,7 +1,4 @@
 using System.Diagnostics;
-using System.Drawing;
-using System.Numerics;
-using System.Reflection;
 using static SDL2.SDL;
 
 namespace JuiceboxEngine;
@@ -11,7 +8,7 @@ public class Camera
     public Vector2 Size { get; set; } = Vector2.Zero;
 }
 
-public class Rectangle
+public struct Rectangle
 {
     public Vector2 Position { get; set; }
     public Vector2 Size { get; set; }
@@ -29,9 +26,16 @@ public class Rectangle
         Position = position;
         Size = size;
     }
+
+    public bool Contains(Vector2 point) => point.X >= TopLeft.X && point.X <= TopRight.X && point.Y >= TopLeft.Y && point.Y <= BottomLeft.Y;
+
+    public static Rectangle operator +(Rectangle a, Vector2 b) => new(a.Position + b, a.Size);
+    public static Rectangle operator -(Rectangle a, Vector2 b) => new(a.Position - b, a.Size);
+
+    public override string ToString() => $"({Position.X};{Position.Y};{Size.X};{Size.Y})";
 }
 
-public class Vector2
+public struct Vector2
 {
     public static Vector2 Right => new(1, 0);
     public static Vector2 Left => new(-1, 0);
@@ -49,6 +53,7 @@ public class Vector2
     }
 
     public override string ToString() => $"({X};{Y})";
+
 
     public static Vector2 operator +(Vector2 a, Vector2 b) => new(a.X + b.X, a.Y + b.Y);
     public static Vector2 operator -(Vector2 a, Vector2 b) => new(a.X - b.X, a.Y - b.Y);
@@ -84,6 +89,14 @@ public class Entity
     public T? GetComponent<T>() => _components.OfType<T>().FirstOrDefault();
 }
 
+public static class EntitySpriteExtensions
+{
+    public static Rectangle GetTargetRectangle(this Entity entity) =>
+        entity.Sprite is null
+            ? throw new InvalidOperationException($"Cannot {nameof(GetTargetRectangle)} on entity without a sprite.")
+            : entity.Sprite.Rectangle - entity.Sprite.Center + entity.Position;
+}
+
 public static class BodyEntityExtensions
 {
     public static Entity WithBody(this Entity entity) => entity.WithComponent(Juicebox.Physics.NewBody(entity));
@@ -96,8 +109,17 @@ public static class TextEntityExtensions
 
 public static class EventEntityExtensions
 {
-    public static OnEachFrameBuilder OnEachFrame(this Entity entity) => new(entity);
+    public record struct OnPressBuilder(Entity Entity);
+    public static OnPressBuilder OnPress(this Entity entity) => new(entity);
+    public delegate void OnPressHandler(Entity Entity);
+    public static Entity Do(this OnPressBuilder builder, Action<OnPressEntity> handler)
+    {
+        Juicebox._instance._events._entityHandlers.AddHandler(builder.Entity, handler);
+        return builder.Entity;
+    }
+
     public record struct OnEachFrameBuilder(Entity Entity);
+    public static OnEachFrameBuilder OnEachFrame(this Entity entity) => new(entity);
     public delegate void OnEachFrameHandler(Entity entity);
     public static Entity Do(this OnEachFrameBuilder builder, OnEachFrameHandler handler)
     {
@@ -123,11 +145,33 @@ public static class EventEntityExtensions
     }
 }
 
+public class Sprites
+{
+    public readonly Dictionary<string, Sprite> _sprites = new();
+    public readonly Dictionary<Sprite, Action<Sprite>> _spriteConfigurations = new();
+
+    public void OnStart()
+    {
+        Juicebox._instance._events._handlers.AddHandler<OnPress>(OnPress);
+    }
+
+    private void OnPress(OnPress e)
+    {
+        foreach (var entity in Juicebox._instance._entities.Values)
+        {
+            if (entity.Sprite is not null && entity.GetTargetRectangle().Contains(e.MousePosition))
+            {
+                Juicebox._instance.Send(entity, new OnPressEntity(entity, e.MousePosition));
+            }
+        }
+    }
+}
+
 public class Sprite
 {
     public string Path { get; }
     public Vector2 Center { get; set; } = Vector2.Zero;
-    public Rectangle Rectangle { get; set; } = new(Vector2.Zero, Vector2.Zero);
+    public Rectangle Rectangle;
 
     public Sprite(string path)
     {
@@ -161,7 +205,7 @@ public static class SpriteEntityExtensions
         }
 
         entity.WithSprite(path);
-        Juicebox._instance._spriteConfigurations[entity.Sprite] = configureSprite;
+        Juicebox._instance._sprites._spriteConfigurations[entity.Sprite] = configureSprite;
         return entity;
     }
 }
@@ -184,10 +228,13 @@ public enum KeyboardButton
     Up, Left, Down, Right
 }
 
+public record OnPress(Vector2 MousePosition);
+public record OnPressEntity(Entity Entity, Vector2 MousePosition);
+
 public class JuiceboxInput
 {
-    public Vector2 Joystick { get; } = Vector2.Zero;
-    public Vector2 Pointer { get; } = Vector2.Zero;
+    public Vector2 Joystick = Vector2.Zero;
+    public Vector2 Pointer = Vector2.Zero;
     public HashSet<MouseButton> _isMouseButtonPressed = new();
     public HashSet<MouseButton> _isMouseButtonDown = new();
     public HashSet<MouseButton> _isMouseButtonUp = new();
@@ -312,6 +359,8 @@ public class JuiceboxInput
             var button = GetMouseButton(@event.button.button);
             _isMouseButtonDown.Add(button);
             _isMouseButtonPressed.Add(button);
+
+            Juicebox.Send(new OnPress(new(@event.button.x, @event.button.y)));
         }
         else if (@event.type is SDL_EventType.SDL_MOUSEBUTTONUP)
         {
@@ -365,14 +414,88 @@ public class JuiceboxEvents
 {
     public List<JuiceboxEventHanlder> OnEachFrameEventHandlers { get; } = new();
     public List<JuiceboxEventHanlder> OnHitEventHandlers { get; } = new();
+    public readonly EventHandlers _handlers = new();
+    public readonly EventHandlers<Entity> _entityHandlers = new();
+
+    internal void Send<T>(T @event) => _handlers.SendEvent(@event);
+    internal void Send<T>(Entity entity, T @event) => _entityHandlers.SendEvent(entity, @event);
+}
+
+public class EventHandlers
+{
+    private readonly Dictionary<Type, List<object>> _handlers = new();
+
+    public IEnumerable<Action<TEvent>> GetHandlers<TEvent>()
+    {
+        return _handlers.TryGetValue(typeof(TEvent), out var handlers)
+            ? handlers.OfType<Action<TEvent>>()
+            : Enumerable.Empty<Action<TEvent>>();
+    }
+
+    public void AddHandler<TEvent>(Action<TEvent> handler) where TEvent : class
+    {
+        if (!_handlers.TryGetValue(typeof(TEvent), out var handlers) || handlers is null)
+        {
+            handlers = new List<object>();
+            _handlers[typeof(TEvent)] = handlers;
+        }
+
+        handlers.Add(handler);
+    }
+
+    public void SendEvent<TEvent>(TEvent @event)
+    {
+        if (_handlers.TryGetValue(typeof(TEvent), out var handlers) && handlers is not null)
+        {
+            foreach (var handler in handlers.OfType<Action<TEvent>>())
+            {
+                handler?.Invoke(@event);
+            }
+        }
+    }
+}
+public class EventHandlers<TKey>
+{
+    private readonly Dictionary<(TKey, Type), List<object>> _handlers = new();
+
+    public IEnumerable<Action<TEvent>> GetHandlers<TEvent>(TKey key)
+    {
+        return _handlers.TryGetValue((key, typeof(TEvent)), out var handlers)
+            ? handlers.OfType<Action<TEvent>>()
+            : Enumerable.Empty<Action<TEvent>>();
+    }
+
+    public void AddHandler<TEvent>(TKey key, Action<TEvent> handler) where TEvent : class
+    {
+        if (!_handlers.TryGetValue((key, typeof(TEvent)), out var handlers) || handlers is null)
+        {
+            handlers = new List<object>();
+            _handlers[(key, typeof(TEvent))] = handlers;
+        }
+
+        handlers.Add(handler);
+    }
+
+    public void SendEvent<TEvent>(TKey key, TEvent @event)
+    {
+        if (_handlers.TryGetValue((key, typeof(TEvent)), out var handlers) && handlers is not null)
+        {
+            foreach (var handler in handlers.OfType<Action<TEvent>>())
+            {
+                handler?.Invoke(@event);
+            }
+        }
+    }
 }
 
 public class Time
 {
     public Stopwatch _stopwatch;
+    public float _lastUpdate;
     public float _delta;
 
     public float Delta => _delta;
+    public float Current => _stopwatch.ElapsedMilliseconds / 1000f;
 
     public void Start()
     {
@@ -381,8 +504,9 @@ public class Time
 
     public void OnUpdate()
     {
-        _delta = _stopwatch.ElapsedMilliseconds / 1000f;
-        _stopwatch.Restart();
+        var current = _stopwatch.ElapsedMilliseconds / 1000f;
+        _delta = current - _lastUpdate;
+        _lastUpdate = current;
     }
 }
 
@@ -506,8 +630,6 @@ public static class ListExtensions
 public class JuiceboxInstance
 {
     public readonly Dictionary<string, Entity> _entities = new();
-    public readonly Dictionary<string, Sprite> _sprites = new();
-    public readonly Dictionary<Sprite, Action<Sprite>> _spriteConfigurations = new();
 
     public readonly List<Text> _texts = new();
     internal readonly JuiceboxInput _input = new();
@@ -516,9 +638,10 @@ public class JuiceboxInstance
     public readonly Physics _physics = new();
     public readonly Gizmos _gizmos = new();
     public readonly Camera _camera = new();
+    public readonly Sprites _sprites = new();
 
     public Entity NewEntity(string name) => _entities[name] = new(name);
-    public Sprite GetSprite(string path) => _sprites.TryGetValue(path, out var sprite) ? sprite : (_sprites[path] = new(path));
+    public Sprite GetSprite(string path) => _sprites._sprites.TryGetValue(path, out var sprite) ? sprite : (_sprites._sprites[path] = new(path));
     public Text NewText(string text, string font)
     {
         var textComponent = new Text { Value = text, Font = font };
@@ -526,6 +649,9 @@ public class JuiceboxInstance
 
         return textComponent;
     }
+
+    public void Send<T>(T @event) => _events.Send(@event);
+    public void Send<T>(Entity entity, T @event) => _events.Send(entity, @event);
 }
 
 public static class Juicebox
@@ -542,5 +668,14 @@ public static class Juicebox
     public static Sprite GetSprite(string path) => _instance.GetSprite(path);
     public static void DrawCircle(Vector2 center, float radius, Color color) => Gizmos.Circles[new Circle(center, radius)] = new Gizmos.DrawData(0.0001f, color);
     public static void DrawLine(Vector2 start, Vector2 end, Color color) => Gizmos.Lines[new Line(start, end)] = new Gizmos.DrawData(0.0001f, color);
+    public static void DrawRectangle(Rectangle rectangle, Color color)
+    {
+        Gizmos.Lines[new Line(rectangle.TopLeft, rectangle.TopRight)] = new Gizmos.DrawData(0.0001f, color);
+        Gizmos.Lines[new Line(rectangle.TopRight, rectangle.BottomRight)] = new Gizmos.DrawData(0.0001f, color);
+        Gizmos.Lines[new Line(rectangle.BottomRight, rectangle.BottomLeft)] = new Gizmos.DrawData(0.0001f, color);
+        Gizmos.Lines[new Line(rectangle.BottomLeft, rectangle.TopLeft)] = new Gizmos.DrawData(0.0001f, color);
+    }
+    public static void Send<T>(T @event) => _instance.Send(@event);
+    public static void Send<T>(Entity entity, T @event) => _instance.Send(entity, @event);
 }
 

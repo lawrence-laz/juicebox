@@ -20,7 +20,9 @@ var ball = Juicebox.NewEntity("ball")
     // .OnEachFrame().Do(entity => entity.Position += speed * Juicebox.Input.Joystick * Juicebox.Time.Delta)
     .OnEachFrame().Do(entity => Juicebox.DrawCircle(entity.Position, 50, Color.Green))
     .OnEachFrame().Do(entity => Juicebox.DrawLine(Vector2.Zero, entity.Position, Color.Blue))
-    .WithBody();
+    .OnPress().Do(entity => Console.WriteLine("Stop pressing me"))
+    // .WithBody()
+    ;
 // .OnEachFrame().Do(ball => ball.Position += ball.Movement.Speed * ball.Movement.Direction)
 // .OnHit(other => other.Name == "ground").Do(() => Juicebox.Restart())
 // .OnHit(other => other.Tags.Contains("bouncy")).Do((bouncy, ball, hit) => ball.Movement.Direction.BounceOff(bouncy.Position));
@@ -59,7 +61,7 @@ SDL_FreeSurface(surface);
 
 // Load sprites
 var sprites = new Dictionary<Sprite, (IntPtr Texture, SDL_Rect TargetRect)>();
-foreach (var sprite in Juicebox._instance._sprites.Values)
+foreach (var sprite in Juicebox._instance._sprites._sprites.Values)
 {
     var spriteSurface = IMG_Load(sprite.Path);
     var spriteTexture = SDL_CreateTextureFromSurface(renderer, spriteSurface);
@@ -68,7 +70,7 @@ foreach (var sprite in Juicebox._instance._sprites.Values)
     var spriteTargetRect = new SDL_Rect { x = 0, y = 0, w = spriteWidth, h = spriteHeight };
     sprites[sprite] = (spriteTexture, spriteTargetRect);
     SDL_FreeSurface(spriteSurface);
-    if (Juicebox._instance._spriteConfigurations.TryGetValue(sprite, out var configureSprite))
+    if (Juicebox._instance._sprites._spriteConfigurations.TryGetValue(sprite, out var configureSprite))
     {
         configureSprite(sprite);
     }
@@ -102,6 +104,7 @@ var destination = new SDL_Rect
     h = height,
 };
 
+Juicebox._instance._sprites.OnStart();
 Juicebox.Time.Start();
 while (true)
 {
@@ -133,10 +136,10 @@ while (true)
         if (entity.Sprite is not null)
         {
             var (spriteTexture, targetRect) = sprites[entity.Sprite];
-            targetRect.x = (int)(entity.Position.X - entity.Sprite.Center.X);
-            targetRect.y = (int)(entity.Position.Y - entity.Sprite.Center.Y);
-            var center = new SDL_Point { x = (int)entity.Sprite.Center.X, y = (int)entity.Sprite.Center.Y };
-            SDL_RenderCopyEx(renderer, spriteTexture, IntPtr.Zero, ref targetRect, entity.Rotation, ref center, SDL_RendererFlip.SDL_FLIP_NONE);
+            var targetRectangle = entity.GetTargetRectangle().ToSdlRect();
+            Juicebox.DrawRectangle(entity.GetTargetRectangle(), Color.Purple);
+            var center = entity.Sprite.Center.ToSdlPoint();
+            SDL_RenderCopyEx(renderer, spriteTexture, IntPtr.Zero, ref targetRectangle, entity.Rotation, ref center, SDL_RendererFlip.SDL_FLIP_NONE);
         }
 
         // Text
@@ -163,3 +166,20 @@ SDL_DestroyRenderer(renderer);
 SDL_DestroyWindow(window);
 SDL_Quit();
 
+
+public static class SdlExtensions
+{
+    public static SDL_Rect ToSdlRect(this Rectangle rectangle) => new()
+    {
+        x = (int)rectangle.Position.X,
+        y = (int)rectangle.Position.Y,
+        w = (int)rectangle.Size.X,
+        h = (int)rectangle.Size.Y
+    };
+
+    public static SDL_Point ToSdlPoint(this Vector2 vector) => new()
+    {
+        x = (int)vector.X,
+        y = (int)vector.Y
+    };
+}
