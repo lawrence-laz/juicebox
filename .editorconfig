@@ -2,6 +2,7 @@
 dotnet_diagnostic.IDE0008.severity = none
 dotnet_diagnostic.IDE0022.severity = none
 dotnet_diagnostic.IDE0058.severity = none
+dotnet_diagnostic.CA1051.severity = none
 
 csharp_style_expression_bodied_operators = when_on_single_line
 csharp_style_namespace_declarations = file_scoped:warning
