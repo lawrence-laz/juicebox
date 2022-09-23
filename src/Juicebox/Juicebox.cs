@@ -3,9 +3,135 @@ using static SDL2.SDL;
 
 namespace JuiceboxEngine;
 
-public class Camera
+public class Camera : IComponent
 {
-    public Vector2 Size { get; set; } = Vector2.Zero;
+    public Vector2 Position => Entity.Position;
+    public Vector2 Size => Entity.Transform.Scale;
+
+    public Entity Entity { get; init; }
+
+    public Camera(Entity entity)
+    {
+        Entity = entity;
+    }
+}
+
+public static class TransformEntityExtensions
+{
+    public static Entity WithParent(this Entity entity, Transform parent)
+    {
+        entity.Transform.Parent = parent;
+        return entity;
+    }
+    public static Entity WithParent(this Entity entity, Entity parent)
+    {
+        entity.Transform.Parent = parent.Transform;
+        return entity;
+    }
+}
+
+public struct Matrix22
+{
+    public float _11, _12, _21, _22;
+
+    public Matrix22(float m11, float m12, float m21, float m22)
+    {
+        _11 = m11; _12 = m12; _21 = m21; _22 = m22;
+    }
+
+    public static Vector2 operator *(Matrix22 matrix, Vector2 vector) => new(
+        (vector.X * matrix._11) + (vector.Y * matrix._12),
+        (vector.X * matrix._21) + (vector.Y * matrix._22));
+}
+
+public struct Matrix33
+{
+    public float _11, _12, _13, _21, _22, _23, _31, _32, _33;
+
+    public static Matrix33 Identity => new(
+        1, 0, 0,
+        0, 1, 0,
+        0, 0, 1
+    );
+
+    public Matrix33(float m11, float m12, float m13, float m21, float m22, float m23, float m31, float m32, float m33)
+    {
+        _11 = m11; _12 = m12; _13 = m13; _21 = m21; _22 = m22; _23 = m23; _31 = m31; _32 = m32; _33 = m33;
+    }
+
+    public static Vector2 operator *(Matrix33 m, Vector2 v) => new(
+        (m._11 * v.X) + (m._12 * v.Y) + m._13,
+        (m._21 * v.X) + (m._22 * v.Y) + m._23
+    );
+
+    public static Matrix33 operator *(Matrix33 a, Matrix33 b) => new(
+        (a._11 * b._11) + (a._12 * b._21) + (a._13 * b._31),
+        (a._11 * b._12) + (a._12 * b._22) + (a._13 * b._32),
+        (a._11 * b._13) + (a._12 * b._23) + (a._13 * b._33),
+
+        (a._21 * b._11) + (a._22 * b._21) + (a._23 * b._31),
+        (a._21 * b._12) + (a._22 * b._22) + (a._23 * b._32),
+        (a._21 * b._13) + (a._22 * b._23) + (a._23 * b._33),
+
+        (a._31 * b._11) + (a._32 * b._21) + (a._33 * b._31),
+        (a._31 * b._12) + (a._32 * b._22) + (a._33 * b._32),
+        (a._31 * b._13) + (a._32 * b._23) + (a._33 * b._33)
+    );
+}
+
+public class Transform
+{
+    public Vector2 LocalPosition { get; set; }
+    public double LocalRotation { get; set; }
+    public Transform? Parent { get; set; }
+    public List<Transform> Children { get; } = new();
+    public Vector2 Scale { get; set; } = Vector2.One;
+
+    public Vector2 Position
+    {
+        get => (Parent?.Position ?? Vector2.Zero) + LocalPosition;
+        set => LocalPosition = value - (Parent?.Position ?? Vector2.Zero);
+    }
+
+    // Rotation isn't supported in transform tree yet, because it requires lvl 80 magic to wield this spell.
+    public double Rotation
+    {
+        get => LocalRotation;
+        set => LocalRotation = value;
+    }
+
+    public Matrix33 TranslationMatrix => new(
+        1, 0, Position.X,
+        0, 1, Position.Y,
+        0, 0, 1
+    );
+
+    public Matrix33 InverseTranslationMatrix => new(
+        1, 0, -Position.X,
+        0, 1, -Position.Y,
+        0, 0, 1
+    );
+
+    public Matrix33 RotationMatrix =>
+        InverseTranslationMatrix
+        * new Matrix33(
+            (float)Math.Cos(Rotation), (float)Math.Sin(Rotation), 0,
+            (float)-Math.Sin(Rotation), (float)Math.Cos(Rotation), 0,
+            0, 0, 1
+        )
+        * TranslationMatrix;
+
+
+    public Matrix33 InverseRotationMatrix =>
+        InverseTranslationMatrix
+        * new Matrix33(
+            (float)Math.Cos(-Rotation), (float)Math.Sin(-Rotation), 0,
+            (float)-Math.Sin(-Rotation), (float)Math.Cos(-Rotation), 0,
+            0, 0, 1
+        )
+        * TranslationMatrix;
+
+    // public Matrix33 Matrix => ;
 }
 
 public struct Rectangle
@@ -31,6 +157,7 @@ public struct Rectangle
 
     public static Rectangle operator +(Rectangle a, Vector2 b) => new(a.Position + b, a.Size);
     public static Rectangle operator -(Rectangle a, Vector2 b) => new(a.Position - b, a.Size);
+    public static Rectangle operator *(Matrix33 m, Rectangle r) => new(m * r.Position, r.Size);
 
     public override string ToString() => $"({Position.X};{Position.Y};{Size.X};{Size.Y})";
 }
@@ -42,6 +169,7 @@ public struct Vector2
     public static Vector2 Up => new(0, -1);
     public static Vector2 Down => new(0, 1);
     public static Vector2 Zero => new(0, 0);
+    public static Vector2 One => new(1, 1);
 
     public float X { get; set; }
     public float Y { get; set; }
@@ -70,12 +198,21 @@ public class Entity
 
     public string Name { get; set; } = string.Empty;
     public List<string> Tags { get; } = new();
-    public Vector2 Position { get; set; } = new(0, 0);
-    public double Rotation { get; set; }
+    public Vector2 Position
+    {
+        get => Transform.Position;
+        set => Transform.Position = value;
+    }
+    public double Rotation
+    {
+        get => Transform.Rotation;
+        set => Transform.Rotation = value;
+    }
+    public Transform Transform { get; } = new();
     public bool IsActive { get; set; } = true;
 
     public Sprite? Sprite { get; set; }
-    public IEnumerable<IComponent> Components => _components;
+    public IList<IComponent> Components => _components;
 
     public Entity(string name)
     {
@@ -203,6 +340,8 @@ public class Text : IComponent, IDisposable
     public string Value { get; set; } = string.Empty;
     public string Font { get; set; } = string.Empty;
     public Entity Entity { get; init; }
+    public Vector2 Center { get; set; }
+    public Rectangle Rectangle;
 
     public Text(Entity entity)
     {
@@ -236,10 +375,23 @@ public static class SpriteEntityExtensions
         return entity;
     }
 
-    public static Rectangle GetTargetRectangle(this Entity entity) =>
-        entity.Sprite is null
-            ? throw new InvalidOperationException($"Cannot {nameof(GetTargetRectangle)} on entity without a sprite.")
-            : entity.Sprite.Rectangle - entity.Sprite.Center + entity.Position;
+    public static Rectangle GetTargetRectangle(this Entity entity)
+    {
+        var position = Juicebox.Camera.Entity.Transform.InverseTranslationMatrix * entity.Position;
+
+        if (entity.Sprite is not null)
+        {
+            return entity.Sprite.Rectangle - entity.Sprite.Center + position;
+        }
+        else if (entity.GetComponent<Text>() is Text text)
+        {
+            return text.Rectangle - text.Center + position;
+        }
+        else
+        {
+            throw new InvalidOperationException($"Cannot {nameof(GetTargetRectangle)} on entity without a sprite or text.");
+        }
+    }
 }
 
 public enum MouseButton
@@ -266,7 +418,8 @@ public record OnPressEntity(Entity Entity, Vector2 MousePosition);
 public class JuiceboxInput
 {
     public Vector2 Joystick = Vector2.Zero;
-    public Vector2 Pointer = Vector2.Zero;
+    public Vector2 PointerScreen = Vector2.Zero;
+    public Vector2 PointerWorld => Juicebox.Camera.Entity.Transform.TranslationMatrix * PointerScreen;
     public HashSet<MouseButton> _isMouseButtonPressed = new();
     public HashSet<MouseButton> _isMouseButtonDown = new();
     public HashSet<MouseButton> _isMouseButtonUp = new();
@@ -380,10 +533,10 @@ public class JuiceboxInput
     {
         if (@event.type is SDL_EventType.SDL_MOUSEMOTION)
         {
-            (Pointer.X, Pointer.Y) = @event switch
+            (PointerScreen.X, PointerScreen.Y) = @event switch
             {
                 { type: SDL_EventType.SDL_MOUSEMOTION } => (@event.motion.x, @event.motion.y),
-                _ => (Pointer.X, Pointer.Y),
+                _ => (PointerScreen.X, PointerScreen.Y),
             };
         }
         else if (@event.type is SDL_EventType.SDL_MOUSEBUTTONDOWN)
@@ -675,8 +828,13 @@ public class JuiceboxInstance
     public readonly Time _time = new();
     public readonly Physics _physics = new();
     public readonly Gizmos _gizmos = new();
-    public readonly Camera _camera = new();
+    public readonly Camera _camera;
     public readonly Sprites _sprites = new();
+
+    public JuiceboxInstance()
+    {
+        _camera = new(NewEntity("camera"));
+    }
 
     public Entity NewEntity(string name) => _entities[name] = new(name);
     public Sprite GetSprite(string path) => _sprites._sprites.TryGetValue(path, out var sprite) ? sprite : (_sprites._sprites[path] = new(path));

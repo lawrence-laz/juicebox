@@ -6,14 +6,13 @@ using JuiceboxEngine;
 using SDL2;
 
 Console.WriteLine("Hello, World!");
-
 var ball = Juicebox.NewEntity("ball")
     .WithSprite("./resources/ball.png", sprite => sprite.Center = sprite.Rectangle.Center)
     .OnEachFrame().Do(entity =>
     {
         if (Juicebox.Input.IsDown(MouseButton.Left) || Juicebox.Input.IsDown(KeyboardButton.Space) || Juicebox.Input.IsUp(KeyboardButton.Space))
         {
-            entity.Position = Juicebox.Input.Pointer;
+            entity.Position = Juicebox.Input.PointerWorld;
         }
     })
     // .OnEachFrame().Do(entity => entity.Position = Juicebox.Input.Pointer)
@@ -23,9 +22,26 @@ var ball = Juicebox.NewEntity("ball")
     .OnPress().Do(entity => Console.WriteLine("Stop pressing me"))
     // .WithBody()
     ;
+
+Juicebox.Camera.Entity
+    .OnEachFrame().Do(camera => camera.Position += Juicebox.Input.Joystick * 10);
 // .OnEachFrame().Do(ball => ball.Position += ball.Movement.Speed * ball.Movement.Direction)
 // .OnHit(other => other.Name == "ground").Do(() => Juicebox.Restart())
 // .OnHit(other => other.Tags.Contains("bouncy")).Do((bouncy, ball, hit) => ball.Movement.Direction.BounceOff(bouncy.Position));
+//
+var star = Juicebox.NewEntity("star")
+    .WithSprite("./resources/star.png")
+    .WithParent(ball.Transform)
+    ;
+star.Transform.LocalPosition += Vector2.Right * 50;
+star.Rotation = 45;
+
+var heart = Juicebox.NewEntity("heart")
+    .WithSprite("./resources/heart.png")
+    .WithParent(star)
+    ;
+
+heart.Transform.LocalPosition += Vector2.Right * 50;
 
 var destroyer = Juicebox.NewEntity("destroyer")
 .OnEachFrame().Do(entity =>
@@ -59,12 +75,15 @@ var renderer = SDL_CreateRenderer(window, -1, SDL_RendererFlags.SDL_RENDERER_ACC
 
 Juicebox.Gizmos.RenderCircle = (circle, color) =>
 {
-    SDL_gfx.circleRGBA(renderer, (short)circle.Center.X, (short)circle.Center.Y, (short)circle.Radius, color.R, color.G, color.B, color.A);
+    var targetPosition = Juicebox.Camera.Entity.Transform.InverseTranslationMatrix * circle.Center;
+    SDL_gfx.circleRGBA(renderer, (short)targetPosition.X, (short)targetPosition.Y, (short)circle.Radius, color.R, color.G, color.B, color.A);
 };
 
 Juicebox.Gizmos.RenderLine = (line, color) =>
 {
-    SDL_gfx.lineRGBA(renderer, (short)line.Start.X, (short)line.Start.Y, (short)line.End.X, (short)line.End.Y, color.R, color.G, color.B, color.A);
+    var start = Juicebox.Camera.Entity.Transform.InverseTranslationMatrix * line.Start;
+    var end = Juicebox.Camera.Entity.Transform.InverseTranslationMatrix * line.End;
+    SDL_gfx.lineRGBA(renderer, (short)start.X, (short)start.Y, (short)end.X, (short)end.Y, color.R, color.G, color.B, color.A);
 };
 
 var surface = IMG_Load("./resources/01-Breakout-Tiles.png");
@@ -103,6 +122,7 @@ foreach (var text in Juicebox._instance._texts)
     var textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
     SDL_FreeSurface(textSurface);
     SDL_QueryTexture(textTexture, out var _, out var _, out var textWidth, out var textHeight);
+    text.Rectangle.Size = new(textWidth, textHeight);
     var textRect = new SDL_Rect() { x = 0, y = 0, w = textWidth, h = textHeight };
     texts[text] = (textTexture, textRect);
 }
@@ -133,7 +153,6 @@ while (true)
 
     SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF);
     SDL_RenderClear(renderer);
-    SDL_RenderCopy(renderer, texture, IntPtr.Zero, ref destination);
 
     Juicebox.Physics.OnUpdate(Juicebox.Time.Delta);
 
@@ -149,7 +168,7 @@ while (true)
         {
             var (spriteTexture, targetRect) = sprites[entity.Sprite];
             var targetRectangle = entity.GetTargetRectangle().ToSdlRect();
-            Juicebox.DrawRectangle(entity.GetTargetRectangle(), Color.Purple);
+            Juicebox.DrawRectangle(Juicebox.Camera.Entity.Transform.TranslationMatrix * entity.GetTargetRectangle(), Color.Purple);
             var center = entity.Sprite.Center.ToSdlPoint();
             SDL_RenderCopyEx(renderer, spriteTexture, IntPtr.Zero, ref targetRectangle, entity.Rotation, ref center, SDL_RendererFlip.SDL_FLIP_NONE);
         }
@@ -158,9 +177,9 @@ while (true)
         if (entity.GetComponent<Text>() is Text text)
         {
             var (textTexture, rect) = texts[text];
-            rect.x = (int)entity.Position.X;
-            rect.y = (int)entity.Position.Y;
-            SDL_RenderCopy(renderer, textTexture, IntPtr.Zero, ref rect);
+            var targetRectangle = entity.GetTargetRectangle().ToSdlRect();
+            Juicebox.DrawRectangle(Juicebox.Camera.Entity.Transform.TranslationMatrix * entity.GetTargetRectangle(), Color.Purple);
+            SDL_RenderCopy(renderer, textTexture, IntPtr.Zero, ref targetRectangle);
         }
     }
 
