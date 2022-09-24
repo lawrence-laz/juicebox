@@ -198,6 +198,8 @@ public struct Rectangle
     public Vector2 Position { get; set; }
     public Vector2 Size { get; set; }
 
+    public static Rectangle One = new(Vector2.Zero, Vector2.One);
+
     public Vector2 TopLeft => Position;
     public Vector2 TopMiddle => Position + (Vector2.Right * (Size.X / 2));
     public Vector2 TopRight => Position + (Vector2.Right * Size.X);
@@ -213,6 +215,8 @@ public struct Rectangle
     }
 
     public bool Contains(Vector2 point) => point.X >= TopLeft.X && point.X <= TopRight.X && point.Y >= TopLeft.Y && point.Y <= BottomLeft.Y;
+    public Rectangle Normalized(Rectangle other) => new(Position.Normalized(other.Size), Size.Normalized(other.Size));
+    public Vector2[] AsPoints() => new[] { TopLeft, TopRight, BottomRight, BottomLeft, TopLeft };
 
     public static Rectangle operator +(Rectangle a, Vector2 b) => new(a.Position + b, a.Size);
     public static Rectangle operator -(Rectangle a, Vector2 b) => new(a.Position - b, a.Size);
@@ -224,18 +228,16 @@ public struct Rectangle
 public class Polygon
 {
     public List<Vector2> Vertices { get; } = new();
+    public List<Vector2> Uvs { get; set; } = new();
 
-    public Polygon(IEnumerable<Vector2> vertices)
+    public Polygon(IEnumerable<Vector2> vertices, IEnumerable<Vector2> uvs)
     {
         Vertices = vertices.ToList();
+        Uvs = uvs.ToList();
     }
 
-    public Polygon(params Vector2[] vertices) : this(vertices as IEnumerable<Vector2>)
-    {
-    }
-
-    public static Polygon operator *(Matrix33 m, Polygon p) => new(p.Vertices.Select(vertex => m * vertex));
-    public static explicit operator Polygon(Rectangle r) => new(r.TopLeft, r.TopRight, r.BottomRight, r.BottomLeft, r.TopLeft);
+    public static Polygon operator *(Matrix33 m, Polygon p) => new(p.Vertices.Select(vertex => m * vertex), p.Uvs);
+    public static explicit operator Polygon(Rectangle r) => new(r.AsPoints(), Enumerable.Empty<Vector2>());
 }
 
 public struct Vector2
@@ -292,7 +294,7 @@ public class Entity
     public Transform Transform { get; } = new();
     public bool IsActive { get; set; } = true;
 
-    public Sprite? Sprite { get; set; }
+    public SpriteRenderer? Sprite { get; set; }
     public IList<IComponent> Components => _components;
 
     public Entity(string name)
@@ -379,8 +381,8 @@ public static class EventEntityExtensions
 
 public class Sprites
 {
-    public readonly Dictionary<string, Sprite> _sprites = new();
-    public readonly Dictionary<Sprite, Action<Sprite>> _spriteConfigurations = new();
+    public readonly Dictionary<string, SpriteRenderer> _sprites = new();
+    public readonly Dictionary<SpriteRenderer, Action<SpriteRenderer>> _spriteConfigurations = new();
 
     public void OnStart()
     {
@@ -399,18 +401,72 @@ public class Sprites
     }
 }
 
-public class Sprite : IComponent
+public class SpriteRenderer : IComponent
 {
     public string Path { get; }
     public Vector2 Center { get => Entity.Transform.Center; set => Entity.Transform.Center = value; }
+    public Rectangle SourceRectangle { get; set; }
     public Entity Entity { get; init; }
 
-    public Rectangle Rectangle;
+    public Rectangle FullRectangle;
 
-    public Sprite(Entity entity, string path)
+    public SpriteRenderer(Entity entity, string path)
     {
         Entity = entity;
         Path = path;
+    }
+}
+
+public class AnimationFrame
+{
+    public Rectangle SourceRectangle;
+    public float Duration;
+
+    public AnimationFrame(Rectangle sourceRectangle, float duration)
+    {
+        SourceRectangle = sourceRectangle;
+        Duration = duration;
+    }
+}
+
+public class Animation
+{
+    public string SpriteSheetPath { get; set; } = string.Empty;
+    public AnimationFrame[] Frames = Array.Empty<AnimationFrame>();
+
+    public Animation(string spriteSheetPath, AnimationFrame[] frames)
+    {
+        SpriteSheetPath = spriteSheetPath;
+        Frames = frames;
+    }
+}
+
+public class Animator : IComponent
+{
+    public int _frameIndex;
+    public float _frameDuration;
+
+    public Animation Animation { get; set; }
+    public Entity Entity { get; init; }
+    public AnimationFrame Frame => Animation.Frames[_frameIndex];
+
+    public Animator(Animation animation, Entity entity)
+    {
+        Animation = animation;
+        Entity = entity;
+    }
+
+    public void OnUpdate()
+    {
+        _frameDuration += Juicebox.Time.Delta;
+        if (_frameDuration >= Frame.Duration)
+        {
+            _frameDuration = 0;
+            _frameIndex = (_frameIndex + 1) % Animation.Frames.Length;
+            // Entity.Sprite.FullRectangle = Frame.SourceRectangle;
+            // Entity.Sprite.FullRectangle.Position = Vector2.Zero;
+            Entity.Sprite.SourceRectangle = Frame.SourceRectangle;
+        }
     }
 }
 
@@ -447,7 +503,7 @@ public static class SpriteEntityExtensions
         return entity;
     }
 
-    public static Entity WithSprite(this Entity entity, string path, Action<Sprite> configureSprite)
+    public static Entity WithSprite(this Entity entity, string path, Action<SpriteRenderer> configureSprite)
     {
         if (configureSprite is null)
         {
@@ -465,7 +521,7 @@ public static class SpriteEntityExtensions
 
         if (entity.Sprite is not null)
         {
-            return entity.Sprite.Rectangle - entity.Sprite.Center + position;
+            return entity.Sprite.FullRectangle - entity.Sprite.Center + position;
         }
         else if (entity.GetComponent<Text>() is Text text)
         {
@@ -928,7 +984,7 @@ public class JuiceboxInstance
     public readonly Gizmos _gizmos = new();
     public readonly Camera _camera;
     public readonly Sprites _sprites = new();
-    public Action<Sprite>? OnLoadSprite;
+    public Action<SpriteRenderer>? OnLoadSprite;
 
     public JuiceboxInstance()
     {
@@ -936,7 +992,7 @@ public class JuiceboxInstance
     }
 
     public Entity NewEntity(string name) => _entities[name] = new(name);
-    public Sprite GetSprite(Entity entity, string path)
+    public SpriteRenderer GetSprite(Entity entity, string path)
     {
         if (!_sprites._sprites.TryGetValue(path, out var sprite))
         {
@@ -974,7 +1030,7 @@ public static class Juicebox
     public static Camera Camera => _instance._camera;
 
     public static Entity NewEntity(string name) => _instance.NewEntity(name);
-    public static Sprite GetSprite(Entity entity, string path) => _instance.GetSprite(entity, path);
+    public static SpriteRenderer GetSprite(Entity entity, string path) => _instance.GetSprite(entity, path);
     public static void DrawCircle(Vector2 center, float radius, Color color, Space space = Space.World) =>
         Gizmos.Circles[(space == Space.World ? Camera.GetWorldToCameraMatrix() : Matrix33.Identity) * new Circle(center, radius)]
             = new Gizmos.DrawData(0.0001f, color, space);

@@ -4,6 +4,7 @@ using static SDL2.SDL_ttf;
 using static SDL2.SDL_gfx;
 using JuiceboxEngine;
 using SDL2;
+using JuiceboxEngine.Aseprite;
 
 SDL_SetHint(SDL_HINT_WINDOWS_DISABLE_THREAD_NAMING, "1");
 SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
@@ -39,13 +40,14 @@ var texture = SDL_CreateTextureFromSurface(renderer, surface);
 SDL_FreeSurface(surface);
 
 // Set up sprite loading
-var sprites = new Dictionary<Sprite, (IntPtr Texture, SDL_Rect TargetRect)>();
+var sprites = new Dictionary<SpriteRenderer, (IntPtr Texture, SDL_Rect TargetRect)>();
 Juicebox._instance.OnLoadSprite = sprite =>
 {
     var spriteSurface = IMG_Load(sprite.Path);
     var spriteTexture = SDL_CreateTextureFromSurface(renderer, spriteSurface);
     SDL_QueryTexture(spriteTexture, out var spriteFormat, out var spriteAccess, out var spriteWidth, out var spriteHeight);
-    sprite.Rectangle.Size = new(spriteWidth, spriteHeight);
+    sprite.FullRectangle.Size = new(spriteWidth, spriteHeight);
+    sprite.SourceRectangle = sprite.FullRectangle;
     var spriteTargetRect = new SDL_Rect { x = 0, y = 0, w = spriteWidth, h = spriteHeight };
     sprites[sprite] = (spriteTexture, spriteTargetRect);
     SDL_FreeSurface(spriteSurface);
@@ -55,7 +57,7 @@ Juicebox._instance.OnLoadSprite = sprite =>
 // GAME
 // ----------------------------------------------------------------------------
 var ball = Juicebox.NewEntity("ball")
-    .WithSprite("./resources/ball.png", sprite => sprite.Center = sprite.Rectangle.Center)
+    .WithSprite("./resources/ball.png", sprite => sprite.Center = sprite.FullRectangle.Center)
     .OnEachFrame().Do(entity =>
     {
         if (Juicebox.Input.IsDown(MouseButton.Left) || Juicebox.Input.IsDown(KeyboardButton.Space) || Juicebox.Input.IsUp(KeyboardButton.Space))
@@ -72,6 +74,9 @@ var ball = Juicebox.NewEntity("ball")
     // .WithBody()
     ;
 
+var powerUp = Juicebox.NewEntity("powerup")
+    .WithAnimation("./resources/power-up-100.json");
+
 Juicebox.Camera.Entity
     .OnEachFrame().Do(camera => camera.Position += Juicebox.Input.Joystick * 10);
 // .OnEachFrame().Do(ball => ball.Position += ball.Movement.Speed * ball.Movement.Direction)
@@ -83,14 +88,14 @@ var star = Juicebox.NewEntity("star")
     .WithParent(ball.Transform)
     .OnEachFrame().Do(entity => entity.RotationDegrees += Juicebox.Input.IsPressed(KeyboardButton.A) ? -2 : Juicebox.Input.IsPressed(KeyboardButton.D) ? 2 : 0)
     ;
-star.Transform.LocalPosition += Vector2.Right * ball.Sprite!.Rectangle.Size.X / 2;
+star.Transform.LocalPosition += Vector2.Right * ball.Sprite!.FullRectangle.Size.X / 2;
 // star.RotationDegrees = 00;
 
 var heart = Juicebox.NewEntity("heart")
     .WithSprite("./resources/heart.png")
     .WithParent(star)
     ;
-heart.Transform.LocalPosition += Vector2.Right * star.Sprite!.Rectangle.Size.X / 2;
+heart.Transform.LocalPosition += Vector2.Right * star.Sprite!.FullRectangle.Size.X / 2;
 
 // heart.Transform.LocalPosition += Vector2.Right * 50;
 
@@ -172,6 +177,12 @@ while (true)
 
     foreach (var entity in Juicebox._instance._entities.Values)
     {
+        // Animator
+        if (entity.GetComponent<Animator>() is Animator animator)
+        {
+            animator.OnUpdate();
+        }
+
         // Sprite
         if (entity.Sprite is not null)
         {
@@ -179,7 +190,9 @@ while (true)
             var polygon =
                 Juicebox.Camera.GetWorldToCameraMatrix()
                 * entity.Transform.GetLocalToWorldMatrix()
-                * (Polygon)new Rectangle(Vector2.Zero, entity.GetTargetRectangle().Size);
+                * (Polygon)new Rectangle(Vector2.Zero, entity.Sprite.SourceRectangle.Size);
+            polygon.Uvs = entity.Sprite.SourceRectangle.Normalized(entity.Sprite.FullRectangle).AsPoints().ToList();
+            // polygon.Uvs = Rectangle.One.AsPoints().ToList();
             Juicebox.DrawPolygon(polygon, Color.Purple, Space.Screen);
             polygon.ToQuad(ref quad);
             if (SDL_RenderGeometry(renderer, spriteTexture, quad.Vertices, quad.Vertices.Length, null, 0) != 0)
@@ -196,6 +209,7 @@ while (true)
                 Juicebox.Camera.GetWorldToCameraMatrix()
                 * entity.Transform.GetLocalToWorldMatrix()
                 * (Polygon)new Rectangle(Vector2.Zero, entity.GetTargetRectangle().Size);
+            polygon.Uvs = Rectangle.One.AsPoints().ToList();
             Juicebox.DrawPolygon(polygon, Color.Purple, Space.Screen);
             polygon.ToQuad(ref quad);
             if (SDL_RenderGeometry(renderer, textTexture, quad.Vertices, quad.Vertices.Length, null, 0) != 0)
@@ -224,29 +238,45 @@ public struct Quad
     public SDL_Vertex[] Vertices = new SDL_Vertex[6];
     public const int DefaultSize = 250;
 
-    public void SetTopLeft(Vector2 position)
+    public void SetTopLeft(Vector2 position, Vector2 uv)
     {
         Vertices[0].position.x = position.X;
         Vertices[0].position.y = position.Y;
+
+        Vertices[0].tex_coord.x = uv.X;
+        Vertices[0].tex_coord.y = uv.Y;
     }
-    public void SetTopRight(Vector2 position)
+    public void SetTopRight(Vector2 position, Vector2 uv)
     {
         Vertices[1].position.x = position.X;
         Vertices[1].position.y = position.Y;
         Vertices[3].position.x = position.X;
         Vertices[3].position.y = position.Y;
+
+        Vertices[1].tex_coord.x = uv.X;
+        Vertices[1].tex_coord.y = uv.Y;
+        Vertices[3].tex_coord.x = uv.X;
+        Vertices[3].tex_coord.y = uv.Y;
     }
-    public void SetBottomLeft(Vector2 position)
+    public void SetBottomLeft(Vector2 position, Vector2 uv)
     {
         Vertices[2].position.x = position.X;
         Vertices[2].position.y = position.Y;
         Vertices[5].position.x = position.X;
         Vertices[5].position.y = position.Y;
+
+        Vertices[2].tex_coord.x = uv.X;
+        Vertices[2].tex_coord.y = uv.Y;
+        Vertices[5].tex_coord.x = uv.X;
+        Vertices[5].tex_coord.y = uv.Y;
     }
-    public void SetBottomRight(Vector2 position)
+    public void SetBottomRight(Vector2 position, Vector2 uv)
     {
         Vertices[4].position.x = position.X;
         Vertices[4].position.y = position.Y;
+
+        Vertices[4].tex_coord.x = uv.X;
+        Vertices[4].tex_coord.y = uv.Y;
     }
 
     public Quad()
@@ -318,10 +348,10 @@ public static class SdlExtensions
 {
     public static void ToQuad(this Polygon polygon, ref Quad quad)
     {
-        quad.SetTopLeft(polygon.Vertices[0]);
-        quad.SetTopRight(polygon.Vertices[1]);
-        quad.SetBottomRight(polygon.Vertices[2]);
-        quad.SetBottomLeft(polygon.Vertices[3]);
+        quad.SetTopLeft(polygon.Vertices[0], polygon.Uvs[0]);
+        quad.SetTopRight(polygon.Vertices[1], polygon.Uvs[1]);
+        quad.SetBottomRight(polygon.Vertices[2], polygon.Uvs[2]);
+        quad.SetBottomLeft(polygon.Vertices[3], polygon.Uvs[3]);
     }
 
     public static SDL_Rect ToSdlRect(this Rectangle rectangle) => new()
