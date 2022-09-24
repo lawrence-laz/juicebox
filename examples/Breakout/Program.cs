@@ -5,60 +5,8 @@ using static SDL2.SDL_gfx;
 using JuiceboxEngine;
 using SDL2;
 
-Console.WriteLine("Hello, World!");
-var ball = Juicebox.NewEntity("ball")
-    .WithSprite("./resources/ball.png", sprite => sprite.Center = sprite.Rectangle.Center)
-    .OnEachFrame().Do(entity =>
-    {
-        if (Juicebox.Input.IsDown(MouseButton.Left) || Juicebox.Input.IsDown(KeyboardButton.Space) || Juicebox.Input.IsUp(KeyboardButton.Space))
-        {
-            entity.Position = Juicebox.Input.PointerWorld;
-        }
-    })
-    // .OnEachFrame().Do(entity => entity.Position = Juicebox.Input.Pointer)
-    // .OnEachFrame().Do(entity => entity.Position += speed * Juicebox.Input.Joystick * Juicebox.Time.Delta)
-    .OnEachFrame().Do(entity => Juicebox.DrawCircle(entity.Position, 50, Color.Green))
-    .OnEachFrame().Do(entity => Juicebox.DrawLine(Vector2.Zero, entity.Position, Color.Blue))
-    .OnPress().Do(entity => Console.WriteLine("Stop pressing me"))
-    // .WithBody()
-    ;
-
-Juicebox.Camera.Entity
-    .OnEachFrame().Do(camera => camera.Position += Juicebox.Input.Joystick * 10);
-// .OnEachFrame().Do(ball => ball.Position += ball.Movement.Speed * ball.Movement.Direction)
-// .OnHit(other => other.Name == "ground").Do(() => Juicebox.Restart())
-// .OnHit(other => other.Tags.Contains("bouncy")).Do((bouncy, ball, hit) => ball.Movement.Direction.BounceOff(bouncy.Position));
-//
-var star = Juicebox.NewEntity("star")
-    .WithSprite("./resources/star.png")
-    .WithParent(ball.Transform)
-    ;
-star.Transform.LocalPosition += Vector2.Right * 50;
-star.Rotation = 45;
-
-var heart = Juicebox.NewEntity("heart")
-    .WithSprite("./resources/heart.png")
-    .WithParent(star)
-    ;
-
-heart.Transform.LocalPosition += Vector2.Right * 50;
-
-var destroyer = Juicebox.NewEntity("destroyer")
-.OnEachFrame().Do(entity =>
-{
-    if (Juicebox.Input.IsDown(KeyboardButton.D))
-    {
-        // Juicebox.FindEntityByName("title").Destroy();
-        // Juicebox.FindComponent<Text>().Entity.Destroy();
-        Juicebox.FindEntityByTag("gui").Destroy();
-    }
-});
-
-var title = Juicebox.NewEntity("title")
-    .WithTags("title-screen", "gui")
-    .WithText("Breakout", font: "./resources/airstrike.ttf");
-
 SDL_SetHint(SDL_HINT_WINDOWS_DISABLE_THREAD_NAMING, "1");
+SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
 
 if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
 {
@@ -75,24 +23,24 @@ var renderer = SDL_CreateRenderer(window, -1, SDL_RendererFlags.SDL_RENDERER_ACC
 
 Juicebox.Gizmos.RenderCircle = (circle, color) =>
 {
-    var targetPosition = Juicebox.Camera.Entity.Transform.InverseTranslationMatrix * circle.Center;
-    SDL_gfx.circleRGBA(renderer, (short)targetPosition.X, (short)targetPosition.Y, (short)circle.Radius, color.R, color.G, color.B, color.A);
+    var targetPosition = circle.Center;
+    SDL_gfx.aacircleRGBA(renderer, (short)targetPosition.X, (short)targetPosition.Y, (short)circle.Radius, color.R, color.G, color.B, color.A);
 };
 
 Juicebox.Gizmos.RenderLine = (line, color) =>
 {
-    var start = Juicebox.Camera.Entity.Transform.InverseTranslationMatrix * line.Start;
-    var end = Juicebox.Camera.Entity.Transform.InverseTranslationMatrix * line.End;
-    SDL_gfx.lineRGBA(renderer, (short)start.X, (short)start.Y, (short)end.X, (short)end.Y, color.R, color.G, color.B, color.A);
+    var start = line.Start;
+    var end = line.End;
+    SDL_gfx.aalineRGBA(renderer, (short)start.X, (short)start.Y, (short)end.X, (short)end.Y, color.R, color.G, color.B, color.A);
 };
 
 var surface = IMG_Load("./resources/01-Breakout-Tiles.png");
 var texture = SDL_CreateTextureFromSurface(renderer, surface);
 SDL_FreeSurface(surface);
 
-// Load sprites
+// Set up sprite loading
 var sprites = new Dictionary<Sprite, (IntPtr Texture, SDL_Rect TargetRect)>();
-foreach (var sprite in Juicebox._instance._sprites._sprites.Values)
+Juicebox._instance.OnLoadSprite = sprite =>
 {
     var spriteSurface = IMG_Load(sprite.Path);
     var spriteTexture = SDL_CreateTextureFromSurface(renderer, spriteSurface);
@@ -101,11 +49,66 @@ foreach (var sprite in Juicebox._instance._sprites._sprites.Values)
     var spriteTargetRect = new SDL_Rect { x = 0, y = 0, w = spriteWidth, h = spriteHeight };
     sprites[sprite] = (spriteTexture, spriteTargetRect);
     SDL_FreeSurface(spriteSurface);
-    if (Juicebox._instance._sprites._spriteConfigurations.TryGetValue(sprite, out var configureSprite))
+};
+
+// ----------------------------------------------------------------------------
+// GAME
+// ----------------------------------------------------------------------------
+var ball = Juicebox.NewEntity("ball")
+    .WithSprite("./resources/ball.png", sprite => sprite.Center = sprite.Rectangle.Center)
+    .OnEachFrame().Do(entity =>
     {
-        configureSprite(sprite);
+        if (Juicebox.Input.IsDown(MouseButton.Left) || Juicebox.Input.IsDown(KeyboardButton.Space) || Juicebox.Input.IsUp(KeyboardButton.Space))
+        {
+            entity.Position = Juicebox.Input.PointerWorld;
+        }
+    })
+    // .OnEachFrame().Do(entity => entity.Position = Juicebox.Input.Pointer)
+    // .OnEachFrame().Do(entity => entity.Position += speed * Juicebox.Input.Joystick * Juicebox.Time.Delta)
+    .OnEachFrame().Do(entity => Juicebox.DrawCircle(entity.Position, 50, Color.Green))
+    .OnEachFrame().Do(entity => Juicebox.DrawLine(Vector2.Zero, entity.Position, Color.Blue))
+    .OnPress().Do(entity => Console.WriteLine("Stop pressing me"))
+    .OnEachFrame().Do(entity => entity.RotationDegrees += Juicebox.Input.IsPressed(KeyboardButton.Q) ? -2 : Juicebox.Input.IsPressed(KeyboardButton.E) ? 2 : 0)
+    // .WithBody()
+    ;
+
+Juicebox.Camera.Entity
+    .OnEachFrame().Do(camera => camera.Position += Juicebox.Input.Joystick * 10);
+// .OnEachFrame().Do(ball => ball.Position += ball.Movement.Speed * ball.Movement.Direction)
+// .OnHit(other => other.Name == "ground").Do(() => Juicebox.Restart())
+// .OnHit(other => other.Tags.Contains("bouncy")).Do((bouncy, ball, hit) => ball.Movement.Direction.BounceOff(bouncy.Position));
+//
+var star = Juicebox.NewEntity("star")
+    .WithSprite("./resources/star.png", sprite => sprite.Center = Vector2.Zero)
+    .WithParent(ball.Transform)
+    .OnEachFrame().Do(entity => entity.RotationDegrees += Juicebox.Input.IsPressed(KeyboardButton.A) ? -2 : Juicebox.Input.IsPressed(KeyboardButton.D) ? 2 : 0)
+    ;
+star.Transform.LocalPosition += Vector2.Right * ball.Sprite!.Rectangle.Size.X / 2;
+// star.RotationDegrees = 00;
+
+var heart = Juicebox.NewEntity("heart")
+    .WithSprite("./resources/heart.png")
+    .WithParent(star)
+    ;
+heart.Transform.LocalPosition += Vector2.Right * star.Sprite!.Rectangle.Size.X / 2;
+
+// heart.Transform.LocalPosition += Vector2.Right * 50;
+
+var destroyer = Juicebox.NewEntity("destroyer")
+.OnEachFrame().Do(entity =>
+{
+    if (Juicebox.Input.IsDown(KeyboardButton.X))
+    {
+        // Juicebox.FindEntityByName("title").Destroy();
+        // Juicebox.FindComponent<Text>().Entity.Destroy();
+        Juicebox.FindEntityByTag("gui").Destroy();
     }
-}
+});
+
+var title = Juicebox.NewEntity("title")
+    .WithTags("title-screen", "gui")
+    .WithText("Breakout", font: "./resources/airstrike.ttf");
+// ----------------------------------------------------------------------------
 
 // Load texts
 var texts = new Dictionary<Text, (IntPtr Texture, SDL_Rect TargetRect)>();
@@ -136,6 +139,8 @@ var destination = new SDL_Rect
     h = height,
 };
 
+var quad = new Quad();
+
 Juicebox._instance._sprites.OnStart();
 Juicebox.Time.Start();
 while (true)
@@ -150,6 +155,9 @@ while (true)
 
         Juicebox.Input.AcceptEvent(e);
     }
+
+    Juicebox.DrawLine(Vector2.Left * 10, Vector2.Right * 10, Color.White);
+    Juicebox.DrawLine(Vector2.Up * 10, Vector2.Down * 10, Color.White);
 
     SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF);
     SDL_RenderClear(renderer);
@@ -168,9 +176,27 @@ while (true)
         {
             var (spriteTexture, targetRect) = sprites[entity.Sprite];
             var targetRectangle = entity.GetTargetRectangle().ToSdlRect();
-            Juicebox.DrawRectangle(Juicebox.Camera.Entity.Transform.TranslationMatrix * entity.GetTargetRectangle(), Color.Purple);
+            var rotationMatrix = entity.Transform.RotationMatrix;
+            System.Console.WriteLine(entity.Transform.GetLocalToWorldMatrix());
+            // System.Console.WriteLine(rotationMatrix);
+            var polygon =
+                Juicebox.Camera.GetWorldToCameraMatrix()
+                *
+                // Matrix33.GetTranslationMatrix(-entity.Transform.Center) // SDL textures rect is on top left, but maybe rect can have center position
+                // *
+                entity.Transform.GetLocalToWorldMatrix()
+                * (Polygon)new Rectangle(Vector2.Zero, entity.GetTargetRectangle().Size);
+            Juicebox.DrawPolygon(
+                polygon,
+                Color.Purple,
+                Space.Screen);
             var center = entity.Sprite.Center.ToSdlPoint();
-            SDL_RenderCopyEx(renderer, spriteTexture, IntPtr.Zero, ref targetRectangle, entity.Rotation, ref center, SDL_RendererFlip.SDL_FLIP_NONE);
+            // Juicebox.DrawCircle(Juicebox.Camera.Entity.Transform.TranslationMatrix * entity.GetTargetRectangle().Position, 2, Color.Red);
+            polygon.ToQuad(ref quad);
+            if (SDL_RenderGeometry(renderer, spriteTexture, quad.Vertices, quad.Vertices.Length, null, 0) != 0)
+            {
+                Console.WriteLine(SDL_GetError());
+            }
         }
 
         // Text
@@ -178,7 +204,7 @@ while (true)
         {
             var (textTexture, rect) = texts[text];
             var targetRectangle = entity.GetTargetRectangle().ToSdlRect();
-            Juicebox.DrawRectangle(Juicebox.Camera.Entity.Transform.TranslationMatrix * entity.GetTargetRectangle(), Color.Purple);
+            // Juicebox.DrawPolygon(Juicebox.Camera.Entity.Transform.TranslationMatrix * (Polygon)entity.GetTargetRectangle(), Color.Purple);
             SDL_RenderCopy(renderer, textTexture, IntPtr.Zero, ref targetRectangle);
         }
     }
@@ -197,9 +223,111 @@ SDL_DestroyRenderer(renderer);
 SDL_DestroyWindow(window);
 SDL_Quit();
 
+public struct Quad
+{
+    public SDL_Vertex[] Vertices = new SDL_Vertex[6];
+    public const int DefaultSize = 250;
+
+    public void SetTopLeft(Vector2 position)
+    {
+        Vertices[0].position.x = position.X;
+        Vertices[0].position.y = position.Y;
+    }
+    public void SetTopRight(Vector2 position)
+    {
+        Vertices[1].position.x = position.X;
+        Vertices[1].position.y = position.Y;
+        Vertices[3].position.x = position.X;
+        Vertices[3].position.y = position.Y;
+    }
+    public void SetBottomLeft(Vector2 position)
+    {
+        Vertices[2].position.x = position.X;
+        Vertices[2].position.y = position.Y;
+        Vertices[5].position.x = position.X;
+        Vertices[5].position.y = position.Y;
+    }
+    public void SetBottomRight(Vector2 position)
+    {
+        Vertices[4].position.x = position.X;
+        Vertices[4].position.y = position.Y;
+    }
+
+    public Quad()
+    {
+        // Top left
+        Vertices[0].position.x = 0;
+        Vertices[0].position.y = 0;
+        Vertices[0].color.r = 255;
+        Vertices[0].color.g = 255;
+        Vertices[0].color.b = 255;
+        Vertices[0].color.a = 255;
+        Vertices[0].tex_coord.x = 0;
+        Vertices[0].tex_coord.x = 0;
+
+        // Top right
+        Vertices[1].position.x = DefaultSize;
+        Vertices[1].position.y = 0;
+        Vertices[1].color.r = 255;
+        Vertices[1].color.g = 255;
+        Vertices[1].color.b = 255;
+        Vertices[1].color.a = 255;
+        Vertices[1].tex_coord.x = 1;
+        Vertices[1].tex_coord.y = 0;
+
+        // Bottom left 
+        Vertices[2].position.x = 0;
+        Vertices[2].position.y = DefaultSize;
+        Vertices[2].color.r = 255;
+        Vertices[2].color.g = 255;
+        Vertices[2].color.b = 255;
+        Vertices[2].color.a = 255;
+        Vertices[2].tex_coord.x = 0;
+        Vertices[2].tex_coord.y = 1;
+
+        // Top right
+        Vertices[3].position.x = DefaultSize;
+        Vertices[3].position.y = 0;
+        Vertices[3].color.r = 255;
+        Vertices[3].color.g = 255;
+        Vertices[3].color.b = 255;
+        Vertices[3].color.a = 255;
+        Vertices[3].tex_coord.x = 1;
+        Vertices[3].tex_coord.y = 0;
+
+        // Bottom right
+        Vertices[4].position.x = DefaultSize;
+        Vertices[4].position.y = DefaultSize;
+        Vertices[4].color.r = 255;
+        Vertices[4].color.g = 255;
+        Vertices[4].color.b = 255;
+        Vertices[4].color.a = 255;
+        Vertices[4].tex_coord.x = 1;
+        Vertices[4].tex_coord.y = 1;
+
+        // Bottom left
+        Vertices[5].position.x = 0;
+        Vertices[5].position.y = DefaultSize;
+        Vertices[5].color.r = 255;
+        Vertices[5].color.g = 255;
+        Vertices[5].color.b = 255;
+        Vertices[5].color.a = 255;
+        Vertices[5].tex_coord.x = 0;
+        Vertices[5].tex_coord.y = 1;
+    }
+
+}
 
 public static class SdlExtensions
 {
+    public static void ToQuad(this Polygon polygon, ref Quad quad)
+    {
+        quad.SetTopLeft(polygon.Vertices[0]);
+        quad.SetTopRight(polygon.Vertices[1]);
+        quad.SetBottomRight(polygon.Vertices[2]);
+        quad.SetBottomLeft(polygon.Vertices[3]);
+    }
+
     public static SDL_Rect ToSdlRect(this Rectangle rectangle) => new()
     {
         x = (int)rectangle.Position.X,

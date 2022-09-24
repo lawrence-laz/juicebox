@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
 using static SDL2.SDL;
 
@@ -14,6 +15,8 @@ public class Camera : IComponent
     {
         Entity = entity;
     }
+
+    public Matrix33 GetWorldToCameraMatrix() => Entity.Transform.GetWorldToLocalMatrix();
 }
 
 public static class TransformEntityExtensions
@@ -42,6 +45,27 @@ public struct Matrix22
     public static Vector2 operator *(Matrix22 matrix, Vector2 vector) => new(
         (vector.X * matrix._11) + (vector.Y * matrix._12),
         (vector.X * matrix._21) + (vector.Y * matrix._22));
+}
+
+public static class Matrix33Extensions
+{
+    public static Matrix33 ToTranslationMatrix(this Vector2 position) => new(
+    1, 0, position.X,
+    0, 1, position.Y,
+    0, 0, 1
+    );
+
+    public static Matrix33 ToRotationMatrix(this double radians) => new(
+    (float)Math.Cos(radians), (float)-Math.Sin(radians), 0,
+    (float)Math.Sin(radians), (float)Math.Cos(radians), 0,
+    0, 0, 1
+    );
+
+    public static Matrix33 ToScaleMatrix(this Vector2 size) => new(
+    size.X, 0, 0,
+    0, size.Y, 0,
+    0, 0, 1
+    );
 }
 
 public struct Matrix33
@@ -77,11 +101,18 @@ public struct Matrix33
         (a._31 * b._12) + (a._32 * b._22) + (a._33 * b._32),
         (a._31 * b._13) + (a._32 * b._23) + (a._33 * b._33)
     );
+
+    public override string ToString() =>
+        $"({_11}, {_12}, {_13}{Environment.NewLine}"
+        + $"{_21}, {_22}, {_23}{Environment.NewLine}"
+        + $"{_31}, {_32}, {_33})";
 }
 
 public class Transform
 {
     public Vector2 LocalPosition { get; set; }
+    public Vector2 Center { get; set; }
+    public Vector2 LocalScale { get; set; } = Vector2.One;
     public double LocalRotation { get; set; }
     public Transform? Parent { get; set; }
     public List<Transform> Children { get; } = new();
@@ -94,10 +125,16 @@ public class Transform
     }
 
     // Rotation isn't supported in transform tree yet, because it requires lvl 80 magic to wield this spell.
-    public double Rotation
+    public double RotationRadians
     {
         get => LocalRotation;
         set => LocalRotation = value;
+    }
+
+    public double RotationDegrees
+    {
+        get => RotationRadians * 180 / Math.PI;
+        set => RotationRadians = value / 180 * Math.PI;
     }
 
     public Matrix33 TranslationMatrix => new(
@@ -112,21 +149,43 @@ public class Transform
         0, 0, 1
     );
 
+    public Matrix33 GetLocalToParentMatrix() =>
+        LocalPosition.ToTranslationMatrix()
+        // * Matrix33.GetTranslationMatrix(-Center)
+        * (Parent?.Center ?? Vector2.Zero).ToTranslationMatrix()
+        * LocalRotation.ToRotationMatrix()
+        * LocalScale.ToScaleMatrix()
+        * (-Center).ToTranslationMatrix()
+        ;
+
+    public Matrix33 GetParentToLocalMatrix() =>
+        new Vector2(LocalScale.X == 0 ? 0 : 1 / LocalScale.X, LocalScale.Y == 0 ? 0 : 1 / LocalScale.Y).ToScaleMatrix()
+        * (-LocalRotation).ToRotationMatrix()
+        * Center.ToTranslationMatrix()
+        * (-LocalPosition).ToTranslationMatrix();
+
+    public Matrix33 GetLocalToWorldMatrix() =>
+        (Parent?.GetLocalToWorldMatrix() ?? Matrix33.Identity) * GetLocalToParentMatrix();
+
+    public Matrix33 GetWorldToLocalMatrix() =>
+        GetParentToLocalMatrix() * (Parent?.GetWorldToLocalMatrix() ?? Matrix33.Identity);
+
     public Matrix33 RotationMatrix =>
-        InverseTranslationMatrix
-        * new Matrix33(
-            (float)Math.Cos(Rotation), (float)Math.Sin(Rotation), 0,
-            (float)-Math.Sin(Rotation), (float)Math.Cos(Rotation), 0,
+        LocalPosition.ToTranslationMatrix() *
+        new Matrix33(
+            (float)Math.Cos(RotationRadians), (float)-Math.Sin(RotationRadians), 0,
+            (float)Math.Sin(RotationRadians), (float)Math.Cos(RotationRadians), 0,
             0, 0, 1
         )
-        * TranslationMatrix;
+        * (-LocalPosition).ToTranslationMatrix()
+        ;
 
 
     public Matrix33 InverseRotationMatrix =>
         InverseTranslationMatrix
         * new Matrix33(
-            (float)Math.Cos(-Rotation), (float)Math.Sin(-Rotation), 0,
-            (float)-Math.Sin(-Rotation), (float)Math.Cos(-Rotation), 0,
+            (float)Math.Cos(-RotationRadians), (float)-Math.Sin(-RotationRadians), 0,
+            (float)Math.Sin(-RotationRadians), (float)Math.Cos(-RotationRadians), 0,
             0, 0, 1
         )
         * TranslationMatrix;
@@ -162,6 +221,23 @@ public struct Rectangle
     public override string ToString() => $"({Position.X};{Position.Y};{Size.X};{Size.Y})";
 }
 
+public class Polygon
+{
+    public List<Vector2> Vertices { get; } = new();
+
+    public Polygon(IEnumerable<Vector2> vertices)
+    {
+        Vertices = vertices.ToList();
+    }
+
+    public Polygon(params Vector2[] vertices) : this(vertices as IEnumerable<Vector2>)
+    {
+    }
+
+    public static Polygon operator *(Matrix33 m, Polygon p) => new(p.Vertices.Select(vertex => m * vertex));
+    public static explicit operator Polygon(Rectangle r) => new(r.TopLeft, r.TopRight, r.BottomRight, r.BottomLeft, r.TopLeft);
+}
+
 public struct Vector2
 {
     public static Vector2 Right => new(1, 0);
@@ -182,9 +258,9 @@ public struct Vector2
 
     public override string ToString() => $"({X};{Y})";
 
-
     public static Vector2 operator +(Vector2 a, Vector2 b) => new(a.X + b.X, a.Y + b.Y);
     public static Vector2 operator -(Vector2 a, Vector2 b) => new(a.X - b.X, a.Y - b.Y);
+    public static Vector2 operator -(Vector2 a) => new(-a.X, -a.Y);
     public static Vector2 operator *(Vector2 a, int b) => new(a.X * b, a.Y * b);
     public static Vector2 operator *(int b, Vector2 a) => new(a.X * b, a.Y * b);
     public static Vector2 operator /(Vector2 a, int b) => new(a.X / b, a.Y / b);
@@ -203,10 +279,15 @@ public class Entity
         get => Transform.Position;
         set => Transform.Position = value;
     }
-    public double Rotation
+    public double RotationRadians
     {
-        get => Transform.Rotation;
-        set => Transform.Rotation = value;
+        get => Transform.RotationRadians;
+        set => Transform.RotationRadians = value;
+    }
+    public double RotationDegrees
+    {
+        get => Transform.RotationDegrees;
+        set => Transform.RotationDegrees = value;
     }
     public Transform Transform { get; } = new();
     public bool IsActive { get; set; } = true;
@@ -318,14 +399,17 @@ public class Sprites
     }
 }
 
-public class Sprite
+public class Sprite : IComponent
 {
     public string Path { get; }
-    public Vector2 Center { get; set; } = Vector2.Zero;
+    public Vector2 Center { get => Entity.Transform.Center; set => Entity.Transform.Center = value; }
+    public Entity Entity { get; init; }
+
     public Rectangle Rectangle;
 
-    public Sprite(string path)
+    public Sprite(Entity entity, string path)
     {
+        Entity = entity;
         Path = path;
     }
 }
@@ -340,7 +424,7 @@ public class Text : IComponent, IDisposable
     public string Value { get; set; } = string.Empty;
     public string Font { get; set; } = string.Empty;
     public Entity Entity { get; init; }
-    public Vector2 Center { get; set; }
+    public Vector2 Center { get => Entity.Transform.Center; set => Entity.Transform.Center = value; }
     public Rectangle Rectangle;
 
     public Text(Entity entity)
@@ -359,7 +443,7 @@ public static class SpriteEntityExtensions
 {
     public static Entity WithSprite(this Entity entity, string path)
     {
-        entity.Sprite = Juicebox.GetSprite(path);
+        entity.Sprite = Juicebox.GetSprite(entity, path);
         return entity;
     }
 
@@ -371,7 +455,7 @@ public static class SpriteEntityExtensions
         }
 
         entity.WithSprite(path);
-        Juicebox._instance._sprites._spriteConfigurations[entity.Sprite] = configureSprite;
+        configureSprite?.Invoke(entity.Sprite);
         return entity;
     }
 
@@ -745,8 +829,21 @@ public record Color(byte R, byte G, byte B, byte A = 0xFF)
     public override string ToString() => $"#{R:X2}{G:X2}{B:X2}{A:X2}";
 }
 
-public record Circle(Vector2 Center, float Radius);
-public record Line(Vector2 Start, Vector2 End);
+public record Circle(Vector2 Center, float Radius)
+{
+    public static Circle operator *(Matrix33 m, Circle c) => new(m * c.Center, c.Radius);
+}
+public record Line(Vector2 Start, Vector2 End)
+{
+    public static Line operator *(Matrix33 m, Line l) => new(m * l.Start, m * l.End);
+}
+
+public enum Space
+{
+    None = 0,
+    World,
+    Screen
+}
 
 public class Gizmos
 {
@@ -754,11 +851,13 @@ public class Gizmos
     {
         public float Duration;
         public Color Color = Color.Green;
+        public Space Space = Space.World;
 
-        public DrawData(float duration, Color color)
+        public DrawData(float duration, Color color, Space space)
         {
             Duration = duration;
             Color = color;
+            Space = space;
         }
     }
 
@@ -806,7 +905,6 @@ public class Gizmos
             Lines.Remove(key);
         }
     }
-
 }
 
 public static class ListExtensions
@@ -830,6 +928,7 @@ public class JuiceboxInstance
     public readonly Gizmos _gizmos = new();
     public readonly Camera _camera;
     public readonly Sprites _sprites = new();
+    public Action<Sprite>? OnLoadSprite;
 
     public JuiceboxInstance()
     {
@@ -837,7 +936,16 @@ public class JuiceboxInstance
     }
 
     public Entity NewEntity(string name) => _entities[name] = new(name);
-    public Sprite GetSprite(string path) => _sprites._sprites.TryGetValue(path, out var sprite) ? sprite : (_sprites._sprites[path] = new(path));
+    public Sprite GetSprite(Entity entity, string path)
+    {
+        if (!_sprites._sprites.TryGetValue(path, out var sprite))
+        {
+            sprite = new(entity, path);
+            _sprites._sprites[path] = sprite;
+        }
+        OnLoadSprite?.Invoke(sprite);
+        return sprite;
+    }
     public Text NewText(Entity entity, string text, string font)
     {
         var textComponent = new Text(entity) { Value = text, Font = font };
@@ -866,15 +974,27 @@ public static class Juicebox
     public static Camera Camera => _instance._camera;
 
     public static Entity NewEntity(string name) => _instance.NewEntity(name);
-    public static Sprite GetSprite(string path) => _instance.GetSprite(path);
-    public static void DrawCircle(Vector2 center, float radius, Color color) => Gizmos.Circles[new Circle(center, radius)] = new Gizmos.DrawData(0.0001f, color);
-    public static void DrawLine(Vector2 start, Vector2 end, Color color) => Gizmos.Lines[new Line(start, end)] = new Gizmos.DrawData(0.0001f, color);
-    public static void DrawRectangle(Rectangle rectangle, Color color)
+    public static Sprite GetSprite(Entity entity, string path) => _instance.GetSprite(entity, path);
+    public static void DrawCircle(Vector2 center, float radius, Color color, Space space = Space.World) =>
+        Gizmos.Circles[(space == Space.World ? Camera.GetWorldToCameraMatrix() : Matrix33.Identity) * new Circle(center, radius)]
+            = new Gizmos.DrawData(0.0001f, color, space);
+    public static void DrawLine(Vector2 start, Vector2 end, Color color, Space space = Space.World) =>
+        Gizmos.Lines[(space == Space.World ? Camera.GetWorldToCameraMatrix() : Matrix33.Identity) * new Line(start, end)]
+            = new Gizmos.DrawData(0.0001f, color, space);
+    public static void DrawRectangle(Rectangle rectangle, Color color, Space space = Space.World)
     {
-        Gizmos.Lines[new Line(rectangle.TopLeft, rectangle.TopRight)] = new Gizmos.DrawData(0.0001f, color);
-        Gizmos.Lines[new Line(rectangle.TopRight, rectangle.BottomRight)] = new Gizmos.DrawData(0.0001f, color);
-        Gizmos.Lines[new Line(rectangle.BottomRight, rectangle.BottomLeft)] = new Gizmos.DrawData(0.0001f, color);
-        Gizmos.Lines[new Line(rectangle.BottomLeft, rectangle.TopLeft)] = new Gizmos.DrawData(0.0001f, color);
+        var transformation = space == Space.World ? Camera.GetWorldToCameraMatrix() : Matrix33.Identity;
+        Gizmos.Lines[transformation * new Line(rectangle.TopLeft, rectangle.TopRight)] = new Gizmos.DrawData(0.0001f, color, space);
+        Gizmos.Lines[transformation * new Line(rectangle.TopRight, rectangle.BottomRight)] = new Gizmos.DrawData(0.0001f, color, space);
+        Gizmos.Lines[transformation * new Line(rectangle.BottomRight, rectangle.BottomLeft)] = new Gizmos.DrawData(0.0001f, color, space);
+        Gizmos.Lines[transformation * new Line(rectangle.BottomLeft, rectangle.TopLeft)] = new Gizmos.DrawData(0.0001f, color, space);
+    }
+    public static void DrawPolygon(Polygon polygon, Color color, Space space = Space.World)
+    {
+        polygon.Vertices.ForeachInPairs((start, end) =>
+        {
+            Gizmos.Lines[new Line(start, end)] = new Gizmos.DrawData(0.0001f, color, space);
+        });
     }
     public static void Send<T>(T @event) => _instance.Send(@event);
     public static void Send<T>(Entity entity, T @event) => _instance.Send(entity, @event);
@@ -885,3 +1005,31 @@ public static class Juicebox
     public static T? FindComponent<T>() => FindComponents<T>().FirstOrDefault();
 }
 
+public static class EnumerableExtensions
+{
+    public static void ForeachInPairs<T>(this IEnumerable<T> enumerable, Action<T, T> handler)
+    {
+        if (enumerable is null)
+        {
+            throw new ArgumentNullException(nameof(enumerable));
+        }
+
+        if (handler is null)
+        {
+            throw new ArgumentNullException(nameof(handler));
+        }
+
+        var size = enumerable.Count();
+        if (size < 2)
+        {
+            throw new ArgumentException("Cannot enumerate in pairs, collection has less than 2 elements", nameof(enumerable));
+        }
+
+        for (var i = 1; i < size; i++)
+        {
+            var first = enumerable.ElementAt(i - 1);
+            var second = enumerable.ElementAt(i);
+            handler.Invoke(first, second);
+        }
+    }
+}
