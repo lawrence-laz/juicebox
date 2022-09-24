@@ -106,6 +106,7 @@ var destroyer = Juicebox.NewEntity("destroyer")
 });
 
 var title = Juicebox.NewEntity("title")
+    .WithParent(ball)
     .WithTags("title-screen", "gui")
     .WithText("Breakout", font: "./resources/airstrike.ttf");
 // ----------------------------------------------------------------------------
@@ -174,24 +175,12 @@ while (true)
         // Sprite
         if (entity.Sprite is not null)
         {
-            var (spriteTexture, targetRect) = sprites[entity.Sprite];
-            var targetRectangle = entity.GetTargetRectangle().ToSdlRect();
-            var rotationMatrix = entity.Transform.RotationMatrix;
-            System.Console.WriteLine(entity.Transform.GetLocalToWorldMatrix());
-            // System.Console.WriteLine(rotationMatrix);
+            var (spriteTexture, _) = sprites[entity.Sprite];
             var polygon =
                 Juicebox.Camera.GetWorldToCameraMatrix()
-                *
-                // Matrix33.GetTranslationMatrix(-entity.Transform.Center) // SDL textures rect is on top left, but maybe rect can have center position
-                // *
-                entity.Transform.GetLocalToWorldMatrix()
+                * entity.Transform.GetLocalToWorldMatrix()
                 * (Polygon)new Rectangle(Vector2.Zero, entity.GetTargetRectangle().Size);
-            Juicebox.DrawPolygon(
-                polygon,
-                Color.Purple,
-                Space.Screen);
-            var center = entity.Sprite.Center.ToSdlPoint();
-            // Juicebox.DrawCircle(Juicebox.Camera.Entity.Transform.TranslationMatrix * entity.GetTargetRectangle().Position, 2, Color.Red);
+            Juicebox.DrawPolygon(polygon, Color.Purple, Space.Screen);
             polygon.ToQuad(ref quad);
             if (SDL_RenderGeometry(renderer, spriteTexture, quad.Vertices, quad.Vertices.Length, null, 0) != 0)
             {
@@ -200,12 +189,19 @@ while (true)
         }
 
         // Text
-        if (entity.GetComponent<Text>() is Text text)
+        else if (entity.GetComponent<Text>() is Text text)
         {
-            var (textTexture, rect) = texts[text];
-            var targetRectangle = entity.GetTargetRectangle().ToSdlRect();
-            // Juicebox.DrawPolygon(Juicebox.Camera.Entity.Transform.TranslationMatrix * (Polygon)entity.GetTargetRectangle(), Color.Purple);
-            SDL_RenderCopy(renderer, textTexture, IntPtr.Zero, ref targetRectangle);
+            var (textTexture, _) = texts[text];
+            var polygon =
+                Juicebox.Camera.GetWorldToCameraMatrix()
+                * entity.Transform.GetLocalToWorldMatrix()
+                * (Polygon)new Rectangle(Vector2.Zero, entity.GetTargetRectangle().Size);
+            Juicebox.DrawPolygon(polygon, Color.Purple, Space.Screen);
+            polygon.ToQuad(ref quad);
+            if (SDL_RenderGeometry(renderer, textTexture, quad.Vertices, quad.Vertices.Length, null, 0) != 0)
+            {
+                Console.WriteLine(SDL_GetError());
+            }
         }
     }
 
