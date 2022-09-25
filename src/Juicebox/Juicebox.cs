@@ -268,6 +268,15 @@ public struct Vector2
 
     public static float Dot(Vector2 a, Vector2 b) => (a.X * b.X) + (a.Y * b.Y);
     public static Vector2 Reflect(Vector2 vector, Vector2 normal) => vector - (2 * Dot(vector, normal) * normal);
+    public static Vector2 Average(IEnumerable<Vector2> vectors)
+    {
+        var average = Zero;
+        foreach (var vector in vectors)
+        {
+            average += vector;
+        }
+        return average / vectors.Count();
+    }
 
     public static Vector2 operator +(Vector2 a, Vector2 b) => new(a.X + b.X, a.Y + b.Y);
     public static Vector2 operator -(Vector2 a, Vector2 b) => new(a.X - b.X, a.Y - b.Y);
@@ -1004,7 +1013,8 @@ public class JuiceboxInstance
         _camera = new(NewEntity("camera"));
     }
 
-    public Entity NewEntity(string name) => _entities[name] = new(name);
+    public Entity NewEntity(string name) =>
+        _entities.ContainsKey(name) ? throw new Exception($"Entity with name '{name}' already exists.") : (_entities[name] = new(name));
     public SpriteRenderer GetSprite(Entity entity, string path)
     {
         if (!_sprites._sprites.TryGetValue(path, out var sprite))

@@ -81,7 +81,7 @@ var bar = Juicebox.NewEntity("bottom-bar")
 ;
 bar.Transform.Position = new(50, 300);
 
-var bar2 = Juicebox.NewEntity("bottom-bar")
+var bar2 = Juicebox.NewEntity("bottom-bar2")
     .WithSprite("./resources/blue-tile.png")
     .WithCircleCollider(collider => collider.Radius = 100);
 bar2.Transform.Position = new(-50, 300);

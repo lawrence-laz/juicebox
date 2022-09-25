@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Runtime.Intrinsics.Arm;
 
 namespace JuiceboxEngine;
@@ -67,6 +68,8 @@ public record struct CollisionData(ICollider First, ICollider Second, Vector2 Ce
 
 public class Collisions
 {
+    public CollisionResolver _resolver = new();
+
     public void OnUpdate()
     {
         var colliders = Juicebox.FindComponents<ICollider>();
@@ -92,7 +95,7 @@ public class Collisions
                     hasCollisions = true;
                     Action? resolver = (first, second) switch
                     {
-                        (CircleCollider a, CircleCollider b) => () => CollisionResolver.ResolveCollision(a, b, collisionCenter),
+                        (CircleCollider a, CircleCollider b) => () => _resolver.ResolveCollision(a, b, collisionCenter),
                         _ => null
                     };
                     resolver?.Invoke();
@@ -100,13 +103,43 @@ public class Collisions
             });
         }
         while (hasCollisions);
+
+        foreach (var (body, directions) in _resolver._bounceOffDirections)
+        {
+            body.Velocity = Vector2.Average(directions).Normalized * body.Velocity.Length;
+        }
+        _resolver._bounceOffDirections.Clear();
     }
 
 }
 
+public class DictionaryList<TKey, TValue> : IEnumerable<(TKey Key, IEnumerable<TValue> Values)>
+where TKey : notnull
+{
+    public Dictionary<TKey, List<TValue>> _dictionary = new();
+
+    public IEnumerable<TValue> Get(TKey key) => _dictionary.TryGetValue(key, out var values) ? values : Enumerable.Empty<TValue>();
+    public void Add(TKey key, TValue value)
+    {
+        if (!_dictionary.TryGetValue(key, out var list))
+        {
+            list = new List<TValue>();
+            _dictionary[key] = list;
+        }
+        list.Add(value);
+    }
+    public void Clear() => _dictionary.Clear();
+
+    public IEnumerator<(TKey Key, IEnumerable<TValue> Values)> GetEnumerator() => _dictionary.Select(pair => (pair.Key, pair.Value.AsEnumerable())).GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+}
+
 public class CollisionResolver
 {
-    public static void ResolveCollision(CircleCollider a, CircleCollider b, Vector2 collisionCenter)
+    public DictionaryList<Body, Vector2> _bounceOffDirections = new();
+
+    public void ResolveCollision(CircleCollider a, CircleCollider b, Vector2 collisionCenter)
     {
         var resolveOffset = a.Radius - a.Circle.Center.DistanceTo(collisionCenter);
         var aBody = a.Entity.GetComponent<Body>();
@@ -117,23 +150,23 @@ public class CollisionResolver
         if (aBody is null && bBody is not null)
         {
             b.Entity.Position += collisionCenter.DirectionTo(b.Circle.Center) * resolveOffset * 2;
-            bBody.Velocity = Vector2.Reflect(bBody.Velocity, a.Circle.Center.DirectionTo(collisionCenter));
+            _bounceOffDirections.Add(bBody, Vector2.Reflect(bBody.Velocity, a.Circle.Center.DirectionTo(collisionCenter)).Normalized);
         }
         else if (bBody is null && aBody is not null)
         {
             a.Entity.Position += collisionCenter.DirectionTo(a.Circle.Center) * resolveOffset * 2;
-            aBody.Velocity = Vector2.Reflect(aBody.Velocity, b.Circle.Center.DirectionTo(collisionCenter));
+            _bounceOffDirections.Add(aBody, Vector2.Reflect(aBody.Velocity, b.Circle.Center.DirectionTo(collisionCenter)).Normalized);
         }
         else if (aBody is not null && bBody is not null)
         {
             a.Entity.Position += collisionCenter.DirectionTo(a.Circle.Center) * resolveOffset;
             b.Entity.Position += collisionCenter.DirectionTo(b.Circle.Center) * resolveOffset;
-            bBody.Velocity = Vector2.Reflect(bBody.Velocity, a.Circle.Center.DirectionTo(collisionCenter));
-            aBody.Velocity = Vector2.Reflect(aBody.Velocity, b.Circle.Center.DirectionTo(collisionCenter));
+            _bounceOffDirections.Add(aBody, Vector2.Reflect(aBody.Velocity, b.Circle.Center.DirectionTo(collisionCenter)).Normalized);
+            _bounceOffDirections.Add(bBody, Vector2.Reflect(bBody.Velocity, a.Circle.Center.DirectionTo(collisionCenter)).Normalized);
         }
         else
         {
-            System.Console.WriteLine("??????????");
+            Console.WriteLine("??????????");
         }
     }
 }
@@ -143,7 +176,7 @@ public static class CollisionDetector
     public static bool AreColliding(Circle a, Circle b, out Vector2 collisionCenter)
     {
         var overlapLength = a.Radius + b.Radius - a.Center.DistanceTo(b.Center);
-        if (overlapLength <= 0)
+        if (overlapLength <= 0.001)
         {
             collisionCenter = default;
             return false;
