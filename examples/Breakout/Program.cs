@@ -58,7 +58,8 @@ Juicebox._instance.OnLoadSprite = sprite =>
 // ----------------------------------------------------------------------------
 var ball = Juicebox.NewEntity("ball")
     .WithSprite("./resources/ball.png", sprite => sprite.Center = sprite.FullRectangle.Center)
-    .WithCircleCollider()
+    // .WithCircleCollider()
+    .WithRectangleCollider()
     .OnEachFrame().Do(entity =>
     {
         if (Juicebox.Input.IsDown(MouseButton.Left) || Juicebox.Input.IsDown(KeyboardButton.Space) || Juicebox.Input.IsUp(KeyboardButton.Space))
@@ -77,14 +78,13 @@ var ball = Juicebox.NewEntity("ball")
 
 var bar = Juicebox.NewEntity("bottom-bar")
     .WithSprite("./resources/blue-tile.png")
-    .WithCircleCollider(collider => collider.Radius = 100)
-;
-bar.Transform.Position = new(50, 300);
+    .WithRectangleCollider();
+bar.Transform.Position = new(0, 200);
 
-var bar2 = Juicebox.NewEntity("bottom-bar2")
-    .WithSprite("./resources/blue-tile.png")
-    .WithCircleCollider(collider => collider.Radius = 100);
-bar2.Transform.Position = new(-50, 300);
+// var bar2 = Juicebox.NewEntity("bottom-bar2")
+//     .WithSprite("./resources/blue-tile.png")
+//     .WithCircleCollider(collider => collider.Radius = 100);
+// bar2.Transform.Position = new(-50, 300);
 
 var powerUp = Juicebox.NewEntity("powerup")
     .WithAnimation("./resources/power-up-100.json");
@@ -215,6 +215,10 @@ while (true)
             if (entity.GetComponent<CircleCollider>() is CircleCollider collider)
             {
                 Juicebox.Draw(collider);
+            }
+            else if (entity.GetComponent<RectangleCollider>() is RectangleCollider rectangleCollider)
+            {
+                Juicebox.Draw(rectangleCollider);
             }
         }
 

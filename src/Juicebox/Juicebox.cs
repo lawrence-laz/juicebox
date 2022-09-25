@@ -207,6 +207,10 @@ public struct Rectangle
     public Vector2 BottomMiddle => Position + (Vector2.Down * Size.Y) + (Vector2.Right * (Size.X / 2));
     public Vector2 BottomRight => Position + Size;
     public Vector2 Center => Position + (Size / 2);
+    public float Left => Position.X;
+    public float Right => Position.X + Size.X;
+    public float Bottom => Position.Y + Size.Y;
+    public float Top => Position.Y;
 
     public Rectangle(Vector2 position, Vector2 size)
     {
@@ -1070,6 +1074,7 @@ public static class Juicebox
         Gizmos.Lines[transformation * new Line(rectangle.BottomRight, rectangle.BottomLeft)] = new Gizmos.DrawData(0.0001f, color, space);
         Gizmos.Lines[transformation * new Line(rectangle.BottomLeft, rectangle.TopLeft)] = new Gizmos.DrawData(0.0001f, color, space);
     }
+    public static void Draw(RectangleCollider collider) => DrawRectangle(collider.Rectangle, Color.Green);
     public static void DrawPolygon(Polygon polygon, Color color, Space space = Space.World)
     {
         polygon.Vertices.ForeachInPairs((start, end) =>
