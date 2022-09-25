@@ -229,6 +229,7 @@ public struct Rectangle
     public override string ToString() => $"({Position.X};{Position.Y};{Size.X};{Size.Y})";
 }
 
+
 public class Polygon
 {
     public List<Vector2> Vertices { get; } = new();
@@ -913,6 +914,8 @@ public record Color(byte R, byte G, byte B, byte A = 0xFF)
 public record Circle(Vector2 Center, float Radius)
 {
     public static Circle operator *(Matrix33 m, Circle c) => new(m * c.Center, c.Radius);
+
+    public bool Contains(Vector2 point) => Center.DistanceTo(point) < Radius;
 }
 public record Line(Vector2 Start, Vector2 End)
 {

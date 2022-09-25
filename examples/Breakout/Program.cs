@@ -58,8 +58,8 @@ Juicebox._instance.OnLoadSprite = sprite =>
 // ----------------------------------------------------------------------------
 var ball = Juicebox.NewEntity("ball")
     .WithSprite("./resources/ball.png", sprite => sprite.Center = sprite.FullRectangle.Center)
-    // .WithCircleCollider()
-    .WithRectangleCollider()
+    .WithCircleCollider()
+    // .WithRectangleCollider()
     .OnEachFrame().Do(entity =>
     {
         if (Juicebox.Input.IsDown(MouseButton.Left) || Juicebox.Input.IsDown(KeyboardButton.Space) || Juicebox.Input.IsUp(KeyboardButton.Space))

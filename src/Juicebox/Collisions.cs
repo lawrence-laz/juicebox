@@ -92,6 +92,8 @@ public class Collisions
                 {
                     (CircleCollider a, CircleCollider b) => CollisionDetector.AreColliding(a.Circle, b.Circle, out collisionData),
                     (RectangleCollider a, RectangleCollider b) => CollisionDetector.AreColliding(a.Rectangle, b.Rectangle, out collisionData),
+                    (RectangleCollider a, CircleCollider b) => CollisionDetector.AreColliding(a.Rectangle, b.Circle, out collisionData),
+                    (CircleCollider a, RectangleCollider b) => CollisionDetector.AreColliding(b.Rectangle, a.Circle, out collisionData),
                     _ => false
                 };
                 if (hasCollision)
@@ -101,6 +103,8 @@ public class Collisions
                     {
                         (CircleCollider a, CircleCollider b) => () => _resolver.ResolveCollision(a, b, collisionData),
                         (RectangleCollider a, RectangleCollider b) => () => _resolver.ResolveCollision(a, b, collisionData),
+                        (RectangleCollider a, CircleCollider b) => () => _resolver.ResolveCollision(a, b, collisionData),
+                        (CircleCollider a, RectangleCollider b) => () => _resolver.ResolveCollision(b, a, collisionData),
                         _ => null
                     };
                     resolver?.Invoke();
@@ -150,8 +154,6 @@ public class CollisionResolver
         var resolveOffset = a.Radius - a.Circle.Center.DistanceTo(collisionCenter);
         var aBody = a.Entity.GetComponent<Body>();
         var bBody = b.Entity.GetComponent<Body>();
-        System.Console.WriteLine($"Resolve offset {resolveOffset}");
-        // Juicebox.Pause();
 
         if (aBody is null && bBody is not null)
         {
@@ -169,6 +171,36 @@ public class CollisionResolver
             b.Entity.Position += collisionCenter.DirectionTo(b.Circle.Center) * resolveOffset;
             _bounceOffDirections.Add(aBody, Vector2.Reflect(aBody.Velocity, b.Circle.Center.DirectionTo(collisionCenter)).Normalized);
             _bounceOffDirections.Add(bBody, Vector2.Reflect(bBody.Velocity, a.Circle.Center.DirectionTo(collisionCenter)).Normalized);
+        }
+        else
+        {
+            Console.WriteLine("??????????");
+        }
+    }
+
+    public void ResolveCollision(RectangleCollider rectangle, CircleCollider circle, CollisionData collision)
+    {
+        var rectangleBody = rectangle.Entity.GetComponent<Body>();
+        var circleBody = circle.Entity.GetComponent<Body>();
+        // Juicebox.Pause();
+
+        // Would be easier to assume the other is stationary and only process `a`, then just iterate over all `a` that have body
+        if (rectangleBody is null && circleBody is not null)
+        {
+            circle.Entity.Position += collision.Delta;
+            _bounceOffDirections.Add(circleBody, Vector2.Reflect(circleBody.Velocity, collision.Normal).Normalized);
+        }
+        else if (circleBody is null && rectangleBody is not null)
+        {
+            rectangle.Entity.Position -= collision.Delta;
+            _bounceOffDirections.Add(rectangleBody, Vector2.Reflect(rectangleBody.Velocity, collision.Normal).Normalized);
+        }
+        else if (rectangleBody is not null && circleBody is not null)
+        {
+            rectangle.Entity.Position -= collision.Delta;
+            _bounceOffDirections.Add(rectangleBody, Vector2.Reflect(rectangleBody.Velocity, -collision.Normal).Normalized);
+            circle.Entity.Position += collision.Delta;
+            _bounceOffDirections.Add(circleBody, Vector2.Reflect(circleBody.Velocity, collision.Normal).Normalized);
         }
         else
         {
@@ -222,10 +254,66 @@ public static class CollisionDetector
         return true;
     }
 
-    public static bool AreColliding(Rectangle a, Circle b, out CollisionData collisionData)
+    public static bool AreColliding(Rectangle rectangle, Circle circle, out CollisionData collisionData)
     {
-        collisionData = default;
-        return false;
+        var closestX = circle.Center.X < rectangle.Left
+            ? rectangle.Left
+            : circle.Center.X > rectangle.Right
+            ? rectangle.Right
+            : circle.Center.X;
+
+        var closestY = circle.Center.Y < rectangle.Top
+            ? rectangle.Top
+            : circle.Center.Y > rectangle.Bottom
+            ? rectangle.Bottom
+            : circle.Center.Y;
+
+        var closestPoint = new Vector2(closestX, closestY);
+
+        if (!circle.Contains(closestPoint))
+        {
+            collisionData = default;
+            return false;
+        }
+
+        var closestEdgeX = circle.Center.X.DistanceTo(rectangle.Left) < circle.Center.X.DistanceTo(rectangle.Right)
+            ? rectangle.Left
+            : rectangle.Right;
+        var closestEdgeY = circle.Center.Y.DistanceTo(rectangle.Top) < circle.Center.Y.DistanceTo(rectangle.Bottom)
+            ? rectangle.Top
+            : rectangle.Bottom;
+
+        if (closestX != closestEdgeX && closestY != closestEdgeY)
+        {
+            if (closestX.DistanceTo(closestEdgeX) < closestY.DistanceTo(closestEdgeY))
+            {
+                closestX = closestEdgeX;
+            }
+            else
+            {
+                closestY = closestEdgeY;
+            }
+        }
+
+        var closestEdgePoint = new Vector2(closestX, closestY);
+
+        var delta = (closestEdgePoint.DirectionTo(circle.Center) * circle.Radius) - (circle.Center - closestEdgePoint);
+
+        var deltaDirection = rectangle.Contains(circle.Center)
+            ? -1
+            : 1;
+
+        delta *= deltaDirection;
+
+        collisionData = new(
+            Center: circle.Center - delta,
+            Normal: delta.Normalized
+        )
+        {
+            Delta = delta
+        };
+
+        return true;
     }
 
     public static bool AreColliding(Rectangle a, Rectangle b, out CollisionData collisionData)
@@ -263,13 +351,6 @@ public static class CollisionDetector
             );
             collisionData.Delta.Y = py * sy;
         }
-
-        // if (a.Bottom <= b.Top || a.Top >= b.Bottom || a.Right <= b.Left || a.Left >= b.Right)
-        // {
-        //     collisionCenter = Vector2.Zero;
-        //     return false;
-        // }
-        // var collisionCenterX = a.Left.DistanceTo(b.Right) < a.Right.DistanceTo(b.Left);
 
         return true;
     }
