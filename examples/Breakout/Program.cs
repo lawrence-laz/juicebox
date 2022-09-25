@@ -58,6 +58,7 @@ Juicebox._instance.OnLoadSprite = sprite =>
 // ----------------------------------------------------------------------------
 var ball = Juicebox.NewEntity("ball")
     .WithSprite("./resources/ball.png", sprite => sprite.Center = sprite.FullRectangle.Center)
+    .WithCircleCollider()
     .OnEachFrame().Do(entity =>
     {
         if (Juicebox.Input.IsDown(MouseButton.Left) || Juicebox.Input.IsDown(KeyboardButton.Space) || Juicebox.Input.IsUp(KeyboardButton.Space))
@@ -67,12 +68,23 @@ var ball = Juicebox.NewEntity("ball")
     })
     // .OnEachFrame().Do(entity => entity.Position = Juicebox.Input.Pointer)
     // .OnEachFrame().Do(entity => entity.Position += speed * Juicebox.Input.Joystick * Juicebox.Time.Delta)
-    .OnEachFrame().Do(entity => Juicebox.DrawCircle(entity.Position, 50, Color.Green))
+    // .OnEachFrame().Do(entity => Juicebox.DrawCircle(entity.Position, 50, Color.Green))
     .OnEachFrame().Do(entity => Juicebox.DrawLine(Vector2.Zero, entity.Position, Color.Blue))
     .OnPress().Do(entity => Console.WriteLine("Stop pressing me"))
     .OnEachFrame().Do(entity => entity.RotationDegrees += Juicebox.Input.IsPressed(KeyboardButton.Q) ? -2 : Juicebox.Input.IsPressed(KeyboardButton.E) ? 2 : 0)
-    // .WithBody()
+    .WithBody()
     ;
+
+var bar = Juicebox.NewEntity("bottom-bar")
+    .WithSprite("./resources/blue-tile.png")
+    .WithCircleCollider(collider => collider.Radius = 100)
+;
+bar.Transform.Position = new(50, 300);
+
+var bar2 = Juicebox.NewEntity("bottom-bar")
+    .WithSprite("./resources/blue-tile.png")
+    .WithCircleCollider(collider => collider.Radius = 100);
+bar2.Transform.Position = new(-50, 300);
 
 var powerUp = Juicebox.NewEntity("powerup")
     .WithAnimation("./resources/power-up-100.json");
@@ -165,6 +177,8 @@ while (true)
     Juicebox.DrawLine(Vector2.Left * 10, Vector2.Right * 10, Color.White);
     Juicebox.DrawLine(Vector2.Up * 10, Vector2.Down * 10, Color.White);
 
+    Juicebox._instance._collisions.OnUpdate();
+
     SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF);
     SDL_RenderClear(renderer);
 
@@ -192,12 +206,15 @@ while (true)
                 * entity.Transform.GetLocalToWorldMatrix()
                 * (Polygon)new Rectangle(Vector2.Zero, entity.Sprite.SourceRectangle.Size);
             polygon.Uvs = entity.Sprite.SourceRectangle.Normalized(entity.Sprite.FullRectangle).AsPoints().ToList();
-            // polygon.Uvs = Rectangle.One.AsPoints().ToList();
             Juicebox.DrawPolygon(polygon, Color.Purple, Space.Screen);
             polygon.ToQuad(ref quad);
             if (SDL_RenderGeometry(renderer, spriteTexture, quad.Vertices, quad.Vertices.Length, null, 0) != 0)
             {
                 Console.WriteLine(SDL_GetError());
+            }
+            if (entity.GetComponent<CircleCollider>() is CircleCollider collider)
+            {
+                Juicebox.Draw(collider);
             }
         }
 

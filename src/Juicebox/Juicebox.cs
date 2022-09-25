@@ -252,13 +252,22 @@ public struct Vector2
     public float X { get; set; }
     public float Y { get; set; }
 
+    public double Length => Math.Sqrt((X * X) + (Y * Y));
+    public Vector2 Normalized => this / Length;
+
     public Vector2(float x, float y)
     {
         X = x;
         Y = y;
     }
 
+    public double DistanceTo(Vector2 other) => (other - this).Length;
+    public Vector2 DirectionTo(Vector2 other) => (other - this).Normalized;
+
     public override string ToString() => $"({X};{Y})";
+
+    public static float Dot(Vector2 a, Vector2 b) => (a.X * b.X) + (a.Y * b.Y);
+    public static Vector2 Reflect(Vector2 vector, Vector2 normal) => vector - (2 * Dot(vector, normal) * normal);
 
     public static Vector2 operator +(Vector2 a, Vector2 b) => new(a.X + b.X, a.Y + b.Y);
     public static Vector2 operator -(Vector2 a, Vector2 b) => new(a.X - b.X, a.Y - b.Y);
@@ -266,8 +275,11 @@ public struct Vector2
     public static Vector2 operator *(Vector2 a, int b) => new(a.X * b, a.Y * b);
     public static Vector2 operator *(int b, Vector2 a) => new(a.X * b, a.Y * b);
     public static Vector2 operator /(Vector2 a, int b) => new(a.X / b, a.Y / b);
+    public static Vector2 operator /(Vector2 a, double b) => new(a.X / (float)b, a.Y / (float)b);
     public static Vector2 operator *(Vector2 a, float b) => new(a.X * b, a.Y * b);
     public static Vector2 operator *(float b, Vector2 a) => new(a.X * b, a.Y * b);
+    public static Vector2 operator *(Vector2 a, double b) => new(a.X * (float)b, a.Y * (float)b);
+    public static Vector2 operator *(double b, Vector2 a) => new(a.X * (float)b, a.Y * (float)b);
 }
 
 public class Entity
@@ -984,6 +996,7 @@ public class JuiceboxInstance
     public readonly Gizmos _gizmos = new();
     public readonly Camera _camera;
     public readonly Sprites _sprites = new();
+    public readonly Collisions _collisions = new();
     public Action<SpriteRenderer>? OnLoadSprite;
 
     public JuiceboxInstance()
@@ -1014,7 +1027,7 @@ public class JuiceboxInstance
     public void Send<T>(Entity entity, T @event) => _events.Send(entity, @event);
 
     internal Entity? FindEntityByName(string name) => _entities.GetValueOrDefault(name);
-    internal IEnumerable<T> FindComponents<T>() => _entities.Values.SelectMany(entity => entity.Components.OfType<T>()).ToList();
+    internal IList<T> FindComponents<T>() => _entities.Values.SelectMany(entity => entity.Components.OfType<T>()).ToList();
     internal IEnumerable<Entity> FindEntitiesByTag(string tag) =>
         _entities.Values.Where(entity => entity.Tags.Contains(tag, StringComparer.InvariantCultureIgnoreCase)).ToList();
 }
@@ -1034,6 +1047,8 @@ public static class Juicebox
     public static void DrawCircle(Vector2 center, float radius, Color color, Space space = Space.World) =>
         Gizmos.Circles[(space == Space.World ? Camera.GetWorldToCameraMatrix() : Matrix33.Identity) * new Circle(center, radius)]
             = new Gizmos.DrawData(0.0001f, color, space);
+    public static void Draw(Circle circle, Color color, Space space = Space.World) => DrawCircle(circle.Center, circle.Radius, color, space);
+    public static void Draw(CircleCollider circle, Space space = Space.World) => DrawCircle(circle.Circle.Center, circle.Circle.Radius, Color.Green, space);
     public static void DrawLine(Vector2 start, Vector2 end, Color color, Space space = Space.World) =>
         Gizmos.Lines[(space == Space.World ? Camera.GetWorldToCameraMatrix() : Matrix33.Identity) * new Line(start, end)]
             = new Gizmos.DrawData(0.0001f, color, space);
@@ -1057,12 +1072,30 @@ public static class Juicebox
     public static Entity? FindEntityByName(string name) => _instance.FindEntityByName(name);
     public static IEnumerable<Entity> FindEntitiesByTag(string tag) => _instance.FindEntitiesByTag(tag);
     public static Entity? FindEntityByTag(string tag) => FindEntitiesByTag(tag).FirstOrDefault();
-    public static IEnumerable<T> FindComponents<T>() => _instance.FindComponents<T>();
+    public static IList<T> FindComponents<T>() => _instance.FindComponents<T>();
     public static T? FindComponent<T>() => FindComponents<T>().FirstOrDefault();
+    public static void Pause()
+    {
+        Console.WriteLine("The game was paused. Press any button to resume . . .");
+        Time._stopwatch.Stop();
+        Console.ReadKey(true);
+        Time._stopwatch.Start();
+    }
 }
 
 public static class EnumerableExtensions
 {
+    public static void ForeachPermutePairs<T>(this IEnumerable<T> enumerable, Action<T, T> handler)
+    {
+        for (var i = 0; i < enumerable.Count() - 1; ++i)
+        {
+            for (var j = i + 1; j < enumerable.Count(); ++j)
+            {
+                handler.Invoke(enumerable.ElementAt(i), enumerable.ElementAt(j));
+            }
+        }
+    }
+
     public static void ForeachInPairs<T>(this IEnumerable<T> enumerable, Action<T, T> handler)
     {
         if (enumerable is null)
