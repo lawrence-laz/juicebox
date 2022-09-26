@@ -2,6 +2,10 @@ namespace JuiceboxEngine;
 
 public static class Mathf
 {
+    private static Random _random = new();
+
+    public static float RandomFloat() => _random.NextSingle() is float x && x == 0 ? 0.0001f : x;
+
     public const float Pi = 3.14159265f;
 
     public static int Min(int a, int b) => a <= b ? a : b;

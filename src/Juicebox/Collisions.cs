@@ -1,5 +1,5 @@
 using System.Collections;
-using System.Runtime.Intrinsics.Arm;
+using System.Threading.Channels;
 
 namespace JuiceboxEngine;
 
@@ -71,12 +71,19 @@ public record struct CollisionData(Vector2 Center, Vector2 Normal)
 
 public class Collisions
 {
+    private readonly Time _time;
     public CollisionResolver _resolver = new();
 
-    public void OnUpdate()
+    public Collisions(Time time)
+    {
+        _time = time;
+    }
+
+    public void Update()
     {
         var colliders = Juicebox.FindComponents<ICollider>();
         var hasCollisions = false;
+        _resolver.Chaos = 0;
         do
         {
             hasCollisions = false;
@@ -96,6 +103,12 @@ public class Collisions
                     (CircleCollider a, RectangleCollider b) => CollisionDetector.AreColliding(b.Rectangle, a.Circle, out collisionData),
                     _ => false
                 };
+
+                if (hasCollision && float.IsNaN(collisionData.Center.X))
+                {
+                    Console.WriteLine("oh shii");
+                }
+
                 if (hasCollision)
                 {
                     hasCollisions = true;
@@ -109,13 +122,21 @@ public class Collisions
                     };
                     resolver?.Invoke();
                 }
+
             });
+            _resolver.Chaos += _time.Delta;
         }
         while (hasCollisions);
 
         foreach (var (body, directions) in _resolver._bounceOffDirections)
         {
             body.Velocity = Vector2.Average(directions).Normalized * body.Velocity.Length;
+            if (float.IsNaN(body.Velocity.X))
+            {
+                body.Velocity = Vector2.Zero;
+                Console.WriteLine("NaN speeds");
+            }
+
         }
         _resolver._bounceOffDirections.Clear();
     }
@@ -146,7 +167,11 @@ where TKey : notnull
 
 public class CollisionResolver
 {
+    public float Chaos;
     public DictionaryList<Body, Vector2> _bounceOffDirections = new();
+
+    private Vector2 ChaosVector => Vector2.Random() * Chaos * 0.01f;
+    private float ChaosMultiplyer => Mathf.RandomFloat() * Chaos + 1;
 
     public void ResolveCollision(CircleCollider a, CircleCollider b, CollisionData collisionData)
     {
@@ -157,18 +182,18 @@ public class CollisionResolver
 
         if (aBody is null && bBody is not null)
         {
-            b.Entity.Position += collisionCenter.DirectionTo(b.Circle.Center) * resolveOffset * 2;
+            b.Entity.Position += collisionCenter.DirectionTo(b.Circle.Center) * resolveOffset * 2 * ChaosMultiplyer + ChaosVector;
             _bounceOffDirections.Add(bBody, Vector2.Reflect(bBody.Velocity, a.Circle.Center.DirectionTo(collisionCenter)).Normalized);
         }
         else if (bBody is null && aBody is not null)
         {
-            a.Entity.Position += collisionCenter.DirectionTo(a.Circle.Center) * resolveOffset * 2;
+            a.Entity.Position += collisionCenter.DirectionTo(a.Circle.Center) * resolveOffset * 2 * ChaosMultiplyer + ChaosVector;
             _bounceOffDirections.Add(aBody, Vector2.Reflect(aBody.Velocity, b.Circle.Center.DirectionTo(collisionCenter)).Normalized);
         }
         else if (aBody is not null && bBody is not null)
         {
-            a.Entity.Position += collisionCenter.DirectionTo(a.Circle.Center) * resolveOffset;
-            b.Entity.Position += collisionCenter.DirectionTo(b.Circle.Center) * resolveOffset;
+            a.Entity.Position += collisionCenter.DirectionTo(a.Circle.Center) * resolveOffset * ChaosMultiplyer + ChaosVector;
+            b.Entity.Position += collisionCenter.DirectionTo(b.Circle.Center) * resolveOffset * ChaosMultiplyer + ChaosVector;
             _bounceOffDirections.Add(aBody, Vector2.Reflect(aBody.Velocity, b.Circle.Center.DirectionTo(collisionCenter)).Normalized);
             _bounceOffDirections.Add(bBody, Vector2.Reflect(bBody.Velocity, a.Circle.Center.DirectionTo(collisionCenter)).Normalized);
         }
@@ -187,19 +212,19 @@ public class CollisionResolver
         // Would be easier to assume the other is stationary and only process `a`, then just iterate over all `a` that have body
         if (rectangleBody is null && circleBody is not null)
         {
-            circle.Entity.Position += collision.Delta;
+            circle.Entity.Position += collision.Delta * ChaosMultiplyer + ChaosVector;
             _bounceOffDirections.Add(circleBody, Vector2.Reflect(circleBody.Velocity, collision.Normal).Normalized);
         }
         else if (circleBody is null && rectangleBody is not null)
         {
-            rectangle.Entity.Position -= collision.Delta;
+            rectangle.Entity.Position -= collision.Delta * ChaosMultiplyer + ChaosVector;
             _bounceOffDirections.Add(rectangleBody, Vector2.Reflect(rectangleBody.Velocity, collision.Normal).Normalized);
         }
         else if (rectangleBody is not null && circleBody is not null)
         {
-            rectangle.Entity.Position -= collision.Delta;
+            rectangle.Entity.Position -= collision.Delta * ChaosMultiplyer + ChaosVector;
             _bounceOffDirections.Add(rectangleBody, Vector2.Reflect(rectangleBody.Velocity, -collision.Normal).Normalized);
-            circle.Entity.Position += collision.Delta;
+            circle.Entity.Position += collision.Delta * ChaosMultiplyer + ChaosVector;
             _bounceOffDirections.Add(circleBody, Vector2.Reflect(circleBody.Velocity, collision.Normal).Normalized);
         }
         else
@@ -217,20 +242,27 @@ public class CollisionResolver
         // Would be easier to assume the other is stationary and only process `a`, then just iterate over all `a` that have body
         if (aBody is null && bBody is not null)
         {
-            b.Entity.Position -= collision.Delta;
+            b.Entity.Position -= collision.Delta * ChaosMultiplyer + ChaosVector;
             _bounceOffDirections.Add(bBody, Vector2.Reflect(bBody.Velocity, -collision.Normal).Normalized);
         }
         else if (bBody is null && aBody is not null)
         {
-            a.Entity.Position += collision.Delta;
+            a.Entity.Position += collision.Delta * ChaosMultiplyer + ChaosVector;
             _bounceOffDirections.Add(aBody, Vector2.Reflect(aBody.Velocity, collision.Normal).Normalized);
         }
         else if (aBody is not null && bBody is not null)
         {
-            a.Entity.Position += collision.Delta;
-            _bounceOffDirections.Add(aBody, Vector2.Reflect(aBody.Velocity, collision.Normal).Normalized);
-            b.Entity.Position -= collision.Delta;
-            _bounceOffDirections.Add(bBody, Vector2.Reflect(bBody.Velocity, -collision.Normal).Normalized);
+            a.Entity.Position += collision.Delta * ChaosMultiplyer + ChaosVector;
+            if (!aBody.Velocity.IsZero())
+            {
+                _bounceOffDirections.Add(aBody, Vector2.Reflect(aBody.Velocity, collision.Normal).Normalized);
+            }
+
+            b.Entity.Position -= collision.Delta * ChaosMultiplyer + ChaosVector;
+            if (!bBody.Velocity.IsZero())
+            {
+                _bounceOffDirections.Add(bBody, Vector2.Reflect(bBody.Velocity, -collision.Normal).Normalized);
+            }
         }
         else
         {
@@ -251,6 +283,10 @@ public static class CollisionDetector
         }
 
         collisionData = new(a.Center + (a.Center.DirectionTo(b.Center) * (a.Radius - (overlapLength / 2))), Vector2.Zero);
+        if (float.IsNaN(collisionData.Center.X))
+        {
+            Console.WriteLine("Well this sucks");
+        }
         return true;
     }
 

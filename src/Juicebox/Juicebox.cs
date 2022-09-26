@@ -268,6 +268,7 @@ public struct Vector2
 
     public double DistanceTo(Vector2 other) => (other - this).Length;
     public Vector2 DirectionTo(Vector2 other) => (other - this).Normalized;
+    public bool IsZero() => X.Abs() < 0.0001f && Y.Abs() < 0.0001f;
 
     public override string ToString() => $"({X};{Y})";
 
@@ -281,6 +282,10 @@ public struct Vector2
             average += vector;
         }
         return average / vectors.Count();
+    }
+    public static Vector2 Random()
+    {
+        return new Vector2(Mathf.RandomFloat(), Mathf.RandomFloat()).Normalized;
     }
 
     public static Vector2 operator +(Vector2 a, Vector2 b) => new(a.X + b.X, a.Y + b.Y);
@@ -320,7 +325,7 @@ public class Entity
     public Transform Transform { get; } = new();
     public bool IsActive { get; set; } = true;
 
-    public SpriteRenderer? Sprite { get; set; }
+    public SpriteRenderer? SpriteRenderer { get; set; }
     public IList<IComponent> Components => _components;
 
     public Entity(string name)
@@ -339,7 +344,7 @@ public class Entity
     public void Destroy()
     {
         IsActive = false;
-        Juicebox._instance._entities.Remove(Name);
+        Juicebox.Destroy(this);
         foreach (var component in _components.OfType<IDisposable>())
         {
             component.Dispose();
@@ -364,7 +369,7 @@ public static class BodyEntityExtensions
 
 public static class TextEntityExtensions
 {
-    public static Entity WithText(this Entity entity, string text, string font) => entity.WithComponent(Juicebox._instance.NewText(entity, text, font));
+    public static Entity WithText(this Entity entity, string text, string font) => entity.WithComponent(Juicebox.Instance.NewText(entity, text, font));
 }
 
 public static class EventEntityExtensions
@@ -374,7 +379,7 @@ public static class EventEntityExtensions
     public delegate void OnPressHandler(Entity Entity);
     public static Entity Do(this OnPressBuilder builder, Action<OnPressEntity> handler)
     {
-        Juicebox._instance._events._entityHandlers.AddHandler(builder.Entity, handler);
+        Juicebox.Instance._events._entityHandlers.AddHandler(builder.Entity, handler);
         return builder.Entity;
     }
 
@@ -383,7 +388,7 @@ public static class EventEntityExtensions
     public delegate void OnEachFrameHandler(Entity entity);
     public static Entity Do(this OnEachFrameBuilder builder, OnEachFrameHandler handler)
     {
-        Juicebox._instance._events.OnEachFrameEventHandlers.Add(new JuiceboxEventHanlder(builder.Entity, null, handler));
+        Juicebox.Instance._events.OnEachFrameEventHandlers.Add(new JuiceboxEventHanlder(builder.Entity, null, handler));
         return builder.Entity;
     }
 
@@ -394,52 +399,116 @@ public static class EventEntityExtensions
     public delegate void OnHitHandler();
     public static Entity Do(this OnHitOtherConditionBuilder builder, OnHitHandler handler)
     {
-        Juicebox._instance._events.OnHitEventHandlers.Add(new JuiceboxEventHanlder(builder.Entity, builder.Condition, handler));
+        Juicebox.Instance._events.OnHitEventHandlers.Add(new JuiceboxEventHanlder(builder.Entity, builder.Condition, handler));
         return builder.Entity;
     }
     public delegate void OnHitThisAndOtherHandler(Entity @this, Entity other);
     public static Entity Do(this OnHitOtherConditionBuilder builder, OnHitThisAndOtherHandler handler)
     {
-        Juicebox._instance._events.OnHitEventHandlers.Add(new JuiceboxEventHanlder(builder.Entity, builder.Condition, handler));
+        Juicebox.Instance._events.OnHitEventHandlers.Add(new JuiceboxEventHanlder(builder.Entity, builder.Condition, handler));
         return builder.Entity;
     }
 }
 
-public class Sprites
+public class SpriteRepository
 {
-    public readonly Dictionary<string, SpriteRenderer> _sprites = new();
-    public readonly Dictionary<SpriteRenderer, Action<SpriteRenderer>> _spriteConfigurations = new();
+    private readonly Dictionary<string, Sprite> _sprites = new();
 
-    public void OnStart()
+    public SpriteRepository()
     {
-        Juicebox._instance._events._handlers.AddHandler<OnPress>(OnPress);
+    }
+
+    public void Add(Sprite sprite)
+    {
+        if (_sprites.ContainsKey(sprite.Path))
+        {
+            throw new InvalidOperationException($"Sprite '{sprite.Path}' already exists.");
+        }
+        _sprites[sprite.Path] = sprite;
+    }
+
+    public Sprite? GetByPath(string path)
+    {
+        return _sprites.GetValueOrDefault(path);
+    }
+
+    public List<Sprite> GetAll()
+    {
+        return _sprites.Values.ToList();
+    }
+}
+
+public class SpriteRendererSystem
+{
+    private readonly EntityRepository _entityRepository;
+
+    public SpriteRendererSystem(EntityRepository entityRepository)
+    {
+        _entityRepository = entityRepository;
+    }
+
+    public void Start()
+    {
+        Juicebox.Instance._events._handlers.AddHandler<OnPress>(OnPress);
     }
 
     private void OnPress(OnPress e)
     {
-        foreach (var entity in Juicebox._instance._entities.Values)
+        foreach (var entity in _entityRepository.GetAll())
         {
-            if (entity.Sprite is not null && entity.GetTargetRectangle().Contains(e.MousePosition))
+            if (entity.SpriteRenderer is not null && entity.GetTargetRectangle().Contains(e.MousePosition))
             {
-                Juicebox._instance.Send(entity, new OnPressEntity(entity, e.MousePosition));
+                Juicebox.Instance.Send(entity, new OnPressEntity(entity, e.MousePosition));
             }
         }
     }
 }
 
-public class SpriteRenderer : IComponent
+public class Sprite
 {
-    public string Path { get; }
-    public Vector2 Center { get => Entity.Transform.Center; set => Entity.Transform.Center = value; }
-    public Rectangle SourceRectangle { get; set; }
-    public Entity Entity { get; init; }
-
+    public string Path;
+    public Vector2 Center;
     public Rectangle FullRectangle;
 
-    public SpriteRenderer(Entity entity, string path)
+    public Sprite(string path, Vector2 center, Rectangle fullRectangle)
+    {
+        Path = path;
+        Center = center;
+        FullRectangle = fullRectangle;
+    }
+}
+
+public class SpriteFactory
+{
+    private readonly SpriteRepository _spriteRepository;
+    private readonly SdlFacade _sdl;
+
+    public SpriteFactory(SpriteRepository spriteRepository, SdlFacade sdl)
+    {
+        _spriteRepository = spriteRepository;
+        _sdl = sdl;
+    }
+
+    public Sprite Create(string path)
+    {
+        var sprite = new Sprite(path, Vector2.Zero, default);
+        _sdl.LoadSprite(sprite);
+        _spriteRepository.Add(sprite);
+        return sprite;
+    }
+}
+
+public class SpriteRenderer : IComponent
+{
+    public Entity Entity { get; init; }
+    public Sprite Sprite;
+    public Rectangle SourceRectangle { get; set; }
+
+    public SpriteRenderer(Entity entity, Sprite sprite)
     {
         Entity = entity;
-        Path = path;
+        Sprite = sprite;
+        SourceRectangle = sprite.FullRectangle;
     }
 }
 
@@ -491,7 +560,7 @@ public class Animator : IComponent
             _frameIndex = (_frameIndex + 1) % Animation.Frames.Length;
             // Entity.Sprite.FullRectangle = Frame.SourceRectangle;
             // Entity.Sprite.FullRectangle.Position = Vector2.Zero;
-            Entity.Sprite.SourceRectangle = Frame.SourceRectangle;
+            Entity.SpriteRenderer.SourceRectangle = Frame.SourceRectangle;
         }
     }
 }
@@ -501,43 +570,95 @@ public interface IComponent
     public Entity Entity { get; init; }
 }
 
-public class Text : IComponent, IDisposable
+public class FontFactory
+{
+    private readonly SdlFacade _sdl;
+    private readonly FontRepository _repository;
+
+    public FontFactory(SdlFacade sdl, FontRepository repository)
+    {
+        _sdl = sdl;
+        _repository = repository;
+    }
+
+    public Font Create(string path)
+    {
+        var font = new Font(path);
+        _repository.Add(font);
+        _sdl.LoadFont(font);
+        return font;
+    }
+}
+
+public class FontRepository
+{
+    public Dictionary<string, Font> _fonts = new();
+
+    public void Add(Font font)
+    {
+        if (_fonts.ContainsKey(font.Path))
+        {
+            throw new InvalidOperationException($"Font '{font.Path}' already exists.");
+        }
+
+        _fonts[font.Path] = font;
+    }
+
+    public Font? GetByPath(string path)
+    {
+        return _fonts.GetValueOrDefault(path);
+    }
+}
+
+public class TextFactory
+{
+    private readonly FontRepository _fontRepository;
+    private readonly FontFactory _fontFactory;
+    private readonly SdlFacade _sdl;
+
+    public TextFactory(
+        FontRepository fontRepository,
+        FontFactory fontFactory,
+        SdlFacade sdl)
+    {
+        _fontRepository = fontRepository;
+        _fontFactory = fontFactory;
+        _sdl = sdl;
+    }
+
+    public Text Create(Entity entity, string fontPath)
+    {
+        if (_fontRepository.GetByPath(fontPath) is not Font font)
+        {
+            font = _fontFactory.Create(fontPath);
+        }
+        var text = new Text(entity, font);
+        entity.Components.Add(text);
+        _sdl.LoadText(text);
+        return text;
+    }
+}
+
+public class Text : IComponent
 {
     public string Value { get; set; } = string.Empty;
-    public string Font { get; set; } = string.Empty;
+    public Font Font { get; set; }
     public Entity Entity { get; init; }
     public Vector2 Center { get => Entity.Transform.Center; set => Entity.Transform.Center = value; }
     public Rectangle Rectangle;
 
-    public Text(Entity entity)
+    public Text(Entity entity, Font font)
     {
         Entity = entity;
-    }
-
-    public void Dispose()
-    {
-        Juicebox._instance._texts.Remove(this);
-        GC.SuppressFinalize(this);
+        Font = font;
     }
 }
 
 public static class SpriteEntityExtensions
 {
-    public static Entity WithSprite(this Entity entity, string path)
+    public static Entity WithSprite(this Entity entity, string path, Action<Sprite>? configureSprite = null)
     {
-        entity.Sprite = Juicebox.GetSprite(entity, path);
-        return entity;
-    }
-
-    public static Entity WithSprite(this Entity entity, string path, Action<SpriteRenderer> configureSprite)
-    {
-        if (configureSprite is null)
-        {
-            throw new ArgumentNullException(nameof(configureSprite));
-        }
-
-        entity.WithSprite(path);
-        configureSprite?.Invoke(entity.Sprite);
+        entity.SpriteRenderer = Juicebox.GetSprite(entity, path, configureSprite);
         return entity;
     }
 
@@ -545,9 +666,9 @@ public static class SpriteEntityExtensions
     {
         var position = Juicebox.Camera.Entity.Transform.InverseTranslationMatrix * entity.Position;
 
-        if (entity.Sprite is not null)
+        if (entity.SpriteRenderer is not null)
         {
-            return entity.Sprite.FullRectangle - entity.Sprite.Center + position;
+            return entity.SpriteRenderer.Sprite.FullRectangle - entity.SpriteRenderer.Sprite.Center + position;
         }
         else if (entity.GetComponent<Text>() is Text text)
         {
@@ -581,7 +702,7 @@ public enum KeyboardButton
 public record OnPress(Vector2 MousePosition);
 public record OnPressEntity(Entity Entity, Vector2 MousePosition);
 
-public class JuiceboxInput
+public class Input
 {
     public Vector2 Joystick = Vector2.Zero;
     public Vector2 PointerScreen = Vector2.Zero;
@@ -761,7 +882,7 @@ public delegate bool OnHitCondition(Entity other);
 
 public record JuiceboxEventHanlder(Entity Entity, object? Condition, object Handler);
 
-public class JuiceboxEvents
+public class Events
 {
     public List<JuiceboxEventHanlder> OnEachFrameEventHandlers { get; } = new();
     public List<JuiceboxEventHanlder> OnHitEventHandlers { get; } = new();
@@ -880,7 +1001,7 @@ public class Physics
 
     public Body NewBody(Entity entity) => Bodies.AddAndReturnSelf((Entity: entity, Body: new(entity))).Body;
 
-    public void OnUpdate(float delta)
+    public void Update(float delta)
     {
         foreach (var (Entity, Body) in Bodies)
         {
@@ -1002,65 +1123,125 @@ public static class ListExtensions
 
 public class JuiceboxInstance
 {
-    public readonly Dictionary<string, Entity> _entities = new();
-
     public readonly List<Text> _texts = new();
-    internal readonly JuiceboxInput _input = new();
-    public readonly JuiceboxEvents _events = new();
-    public readonly Time _time = new();
-    public readonly Physics _physics = new();
-    public readonly Gizmos _gizmos = new();
-    public readonly Camera _camera;
-    public readonly Sprites _sprites = new();
-    public readonly Collisions _collisions = new();
-    public Action<SpriteRenderer>? OnLoadSprite;
+    internal readonly Input _input;
+    public readonly Events _events;
+    public readonly Time _time;
+    public readonly Physics _physics;
+    public readonly Gizmos _gizmos;
+    public Camera _camera;
+    public readonly Collisions _collisions;
+    private readonly SdlFacade _sdl;
+    private readonly EntityFactory _entityFactory;
+    private readonly EntityRepository _entityRepository;
+    private readonly TextFactory _textFactory;
+    private readonly SpriteRepository _spriteRepository;
+    private readonly SpriteFactory _spriteFactory;
+    private readonly SpriteRendererSystem _spriteRendererSystem;
+    private readonly MainLoop _mainLoop;
+    public Action<Sprite>? OnLoadSprite;
 
-    public JuiceboxInstance()
+    public JuiceboxInstance(
+        SdlFacade sdl,
+        EntityFactory entityFactory,
+        EntityRepository entityRepository,
+        TextFactory textFactory,
+        SpriteRepository spriteRepository,
+        SpriteFactory spriteFactory,
+        SpriteRendererSystem spriteRendererSystem,
+        MainLoop mainLoop,
+        Input input,
+        Events events,
+        Time time,
+        Physics physics,
+        Gizmos gizmos,
+        Collisions collisions)
     {
-        _camera = new(NewEntity("camera"));
+        Juicebox.Instance = this;
+        _sdl = sdl;
+        _entityFactory = entityFactory;
+        _entityRepository = entityRepository;
+        _textFactory = textFactory;
+        _spriteRepository = spriteRepository;
+        _spriteFactory = spriteFactory;
+        _spriteRendererSystem = spriteRendererSystem;
+        _mainLoop = mainLoop;
+        _input = input;
+        _events = events;
+        _time = time;
+        _physics = physics;
+        _gizmos = gizmos;
+        _collisions = collisions;
     }
 
-    public Entity NewEntity(string name) =>
-        _entities.ContainsKey(name) ? throw new Exception($"Entity with name '{name}' already exists.") : (_entities[name] = new(name));
-    public SpriteRenderer GetSprite(Entity entity, string path)
+    public void Start()
     {
-        if (!_sprites._sprites.TryGetValue(path, out var sprite))
+        _camera = new(NewEntity("camera"));
+        _sdl.Start();
+        _spriteRendererSystem.Start();
+        _time.Start();
+    }
+
+    public void BeginMainLoopThisIsBadNameFixMePlease()
+    {
+        _mainLoop.Start();
+    }
+
+    public void Stop()
+    {
+        _sdl.Stop();
+    }
+
+    public SpriteRenderer GetSprite(Entity entity, string path, Action<Sprite>? configureSprite)
+    {
+        if (_spriteRepository.GetByPath(path) is not Sprite sprite)
         {
-            sprite = new(entity, path);
-            _sprites._sprites[path] = sprite;
+            sprite = _spriteFactory.Create(path);
+            configureSprite?.Invoke(sprite);
         }
-        OnLoadSprite?.Invoke(sprite);
-        return sprite;
+        var spriteRenderer = new SpriteRenderer(entity, sprite);
+        entity.Components.Add(spriteRenderer);
+        entity.Transform.Center = sprite.Center;
+        return spriteRenderer;
     }
     public Text NewText(Entity entity, string text, string font)
     {
-        var textComponent = new Text(entity) { Value = text, Font = font };
-        _texts.Add(textComponent);
-
+        var textComponent = _textFactory.Create(entity, font);
+        textComponent.Value = text;
         return textComponent;
     }
 
     public void Send<T>(T @event) => _events.Send(@event);
     public void Send<T>(Entity entity, T @event) => _events.Send(entity, @event);
 
-    internal Entity? FindEntityByName(string name) => _entities.GetValueOrDefault(name);
-    internal IList<T> FindComponents<T>() => _entities.Values.SelectMany(entity => entity.Components.OfType<T>()).ToList();
-    internal IEnumerable<Entity> FindEntitiesByTag(string tag) =>
-        _entities.Values.Where(entity => entity.Tags.Contains(tag, StringComparer.InvariantCultureIgnoreCase)).ToList();
+    internal Entity NewEntity(string name) => _entityFactory.Create(name);
+    internal IList<T> FindComponents<T>() => _entityRepository.GetComponents<T>();
+    internal IEnumerable<Entity> FindEntitiesByTag(string tag) => _entityRepository.GetByTag(tag);
+    internal Entity? FindEntityByName(string name) => _entityRepository.GetByName(name);
+
+    internal void Destroy(Entity entity)
+    {
+        _entityRepository.Remove(entity);
+    }
 }
 
 public static class Juicebox
 {
-    public static readonly JuiceboxInstance _instance = new();
+    private static JuiceboxInstance? _instance;
+    public static JuiceboxInstance Instance
+    {
+        get => _instance ?? throw new InvalidOperationException("Start Juicebox engine before using it.");
+        internal set => _instance = value;
+    }
 
-    public static JuiceboxInput Input => _instance._input;
-    public static Time Time => _instance._time;
-    public static Physics Physics => _instance._physics;
-    public static Gizmos Gizmos => _instance._gizmos;
-    public static Camera Camera => _instance._camera;
+    public static Input Input => Instance._input;
+    public static Time Time => Instance._time;
+    public static Physics Physics => Instance._physics;
+    public static Gizmos Gizmos => Instance._gizmos;
+    public static Camera Camera => Instance._camera;
 
-    public static Entity NewEntity(string name) => _instance.NewEntity(name);
-    public static SpriteRenderer GetSprite(Entity entity, string path) => _instance.GetSprite(entity, path);
+    public static Entity NewEntity(string name) => Instance.NewEntity(name);
+    public static SpriteRenderer GetSprite(Entity entity, string path, Action<Sprite> configuration) => Instance.GetSprite(entity, path, configuration);
     public static void DrawCircle(Vector2 center, float radius, Color color, Space space = Space.World) =>
         Gizmos.Circles[(space == Space.World ? Camera.GetWorldToCameraMatrix() : Matrix33.Identity) * new Circle(center, radius)]
             = new Gizmos.DrawData(0.0001f, color, space);
@@ -1085,19 +1266,24 @@ public static class Juicebox
             Gizmos.Lines[new Line(start, end)] = new Gizmos.DrawData(0.0001f, color, space);
         });
     }
-    public static void Send<T>(T @event) => _instance.Send(@event);
-    public static void Send<T>(Entity entity, T @event) => _instance.Send(entity, @event);
-    public static Entity? FindEntityByName(string name) => _instance.FindEntityByName(name);
-    public static IEnumerable<Entity> FindEntitiesByTag(string tag) => _instance.FindEntitiesByTag(tag);
+    public static void Send<T>(T @event) => Instance.Send(@event);
+    public static void Send<T>(Entity entity, T @event) => Instance.Send(entity, @event);
+    public static Entity? FindEntityByName(string name) => Instance.FindEntityByName(name);
+    public static IEnumerable<Entity> FindEntitiesByTag(string tag) => Instance.FindEntitiesByTag(tag);
     public static Entity? FindEntityByTag(string tag) => FindEntitiesByTag(tag).FirstOrDefault();
-    public static IList<T> FindComponents<T>() => _instance.FindComponents<T>();
+    public static IList<T> FindComponents<T>() => Instance.FindComponents<T>();
     public static T? FindComponent<T>() => FindComponents<T>().FirstOrDefault();
+    public static void Destroy(Entity entity) => Instance.Destroy(entity);
     public static void Pause()
     {
         Console.WriteLine("The game was paused. Press any button to resume . . .");
         Time._stopwatch.Stop();
         Console.ReadKey(true);
         Time._stopwatch.Start();
+    }
+    public static void BeginMainLoopThisIsBadNameFixMePlease()
+    {
+        _instance.BeginMainLoopThisIsBadNameFixMePlease();
     }
 }
 

@@ -26,7 +26,7 @@ public static class AsepriteEntityExtensions
                 ).ToArray()
         );
 
-        entity.Sprite = Juicebox.GetSprite(entity, animation.SpriteSheetPath);
+        entity.SpriteRenderer = Juicebox.GetSprite(entity, animation.SpriteSheetPath, null);
         var animator = new Animator(animation, entity);
 
         return entity.WithComponent(animator);
