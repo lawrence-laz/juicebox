@@ -13,7 +13,7 @@ public static class CircleColliderEntityExtensions
 {
     public static Entity WithCircleCollider(this Entity entity)
     {
-        var collider = new CircleCollider(entity.Transform.Center, entity.GetTargetRectangle().Size.X / 2, entity);
+        var collider = new CircleCollider(entity.Transform.Center, entity.GetTargetRectangle().Size.X / 2 * entity.Transform.LocalScale.X, entity);
         return entity.WithComponent(collider);
     }
     public static Entity WithCircleCollider(this Entity entity, Action<CircleCollider> configureCollider)
@@ -28,7 +28,7 @@ public static class RectangleColliderEntityExtensions
 {
     public static Entity WithRectangleCollider(this Entity entity)
     {
-        var collider = new RectangleCollider(Vector2.Zero, entity.GetTargetRectangle().Size, entity);
+        var collider = new RectangleCollider(Vector2.Zero, entity.GetTargetRectangle().Size.MultiplyElementWise(entity.Transform.LocalScale), entity);
         return entity.WithComponent(collider);
     }
 }

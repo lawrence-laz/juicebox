@@ -17,6 +17,7 @@ juiceBox.Start();
 var createBall = () =>
 {
     return Juicebox.NewEntity($"ball {Guid.NewGuid()}")
+        .WithLocalScale(0.2f)
         .WithSprite("./resources/ball.png", sprite =>
         {
             // Console.WriteLine("Configuring!");
@@ -55,6 +56,7 @@ var ball = Juicebox.NewEntity("ball")
     ;
 
 var bar = Juicebox.NewEntity("bottom-bar")
+    .WithLocalScale(0.8f)
     .WithSprite("./resources/blue-tile.png")
     .WithRectangleCollider();
 bar.Transform.Position = new(0, 200);

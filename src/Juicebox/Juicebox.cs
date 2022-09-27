@@ -31,6 +31,41 @@ public static class TransformEntityExtensions
         entity.Transform.Parent = parent.Transform;
         return entity;
     }
+    public static Entity WithPosition(this Entity entity, Vector2 position)
+    {
+        entity.Transform.Position = position;
+        return entity;
+    }
+    public static Entity WithLocalPosition(this Entity entity, Vector2 position)
+    {
+        entity.Transform.LocalPosition = position;
+        return entity;
+    }
+    // public static Entity WithScale(this Entity entity, Vector2 scale)
+    // {
+    //     entity.Transform.Scale = scale;
+    //     return entity;
+    // }
+    // public static Entity WithScale(this Entity entity, float scale)
+    // {
+    //     entity.Transform.Scale = Vector2.One * scale;
+    //     return entity;
+    // }
+    public static Entity WithLocalScale(this Entity entity, Vector2 scale)
+    {
+        entity.Transform.LocalScale = scale;
+        return entity;
+    }
+    public static Entity WithLocalScale(this Entity entity, float scale)
+    {
+        entity.Transform.LocalScale = Vector2.One * scale;
+        return entity;
+    }
+    public static Entity WithRotation(this Entity entity, float degrees)
+    {
+        entity.Transform.RotationDegrees = degrees;
+        return entity;
+    }
 }
 
 public struct Matrix22
@@ -124,7 +159,6 @@ public class Transform
         set => LocalPosition = value - (Parent?.Position ?? Vector2.Zero);
     }
 
-    // Rotation isn't supported in transform tree yet, because it requires lvl 80 magic to wield this spell.
     public double RotationRadians
     {
         get => LocalRotation;
@@ -269,6 +303,7 @@ public struct Vector2
     public double DistanceTo(Vector2 other) => (other - this).Length;
     public Vector2 DirectionTo(Vector2 other) => (other - this).Normalized;
     public bool IsZero() => X.Abs() < 0.0001f && Y.Abs() < 0.0001f;
+    public Vector2 MultiplyElementWise(Vector2 other) => new(X * other.X, Y * other.Y);
 
     public override string ToString() => $"({X};{Y})";
 
