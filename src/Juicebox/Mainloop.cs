@@ -11,6 +11,7 @@ public class MainLoop
     private readonly Events _events;
     private readonly Collisions _collisions;
     private readonly EntityRepository _entityRepository;
+    private readonly Time _time;
 
     public MainLoop(
         SdlFacade sdl,
@@ -18,7 +19,8 @@ public class MainLoop
         Gizmos gizmos,
         Events events,
         Collisions collisions,
-        EntityRepository entityRepository)
+        EntityRepository entityRepository,
+        Time time)
     {
         _sdl = sdl;
         _input = input;
@@ -26,6 +28,7 @@ public class MainLoop
         _events = events;
         _collisions = collisions;
         _entityRepository = entityRepository;
+        _time = time;
     }
 
     public void Start()
@@ -89,6 +92,7 @@ public class MainLoop
             _gizmos.Update(Juicebox.Time.Delta);
             _input.AfterUpdate();
             _sdl.AfterUpdate();
+            _time.AfterUpdate();
 
             SDL_Delay(1000 / 60);
         }

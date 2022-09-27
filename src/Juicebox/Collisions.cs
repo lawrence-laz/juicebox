@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Threading.Channels;
+using static JuiceboxEngine.EventEntityExtensions;
 
 namespace JuiceboxEngine;
 
@@ -72,11 +73,15 @@ public record struct CollisionData(Vector2 Center, Vector2 Normal)
 public class Collisions
 {
     private readonly Time _time;
+    private readonly Events _events;
+    private readonly float _onHitPeriod = 0.01f;
+    private readonly Dictionary<(Entity, Entity), float> _hitHistory = new();
     public CollisionResolver _resolver = new();
 
-    public Collisions(Time time)
+    public Collisions(Time time, Events events)
     {
         _time = time;
+        _events = events;
     }
 
     public void Update()
@@ -111,6 +116,15 @@ public class Collisions
 
                 if (hasCollision)
                 {
+                    if (!_hitHistory.TryGetValue((first.Entity, second.Entity), out var lastHitTime)
+                        || lastHitTime + _onHitPeriod <= _time.Current)
+                    {
+                        _events.Send(first.Entity, new OnHitEvent(first.Entity, second.Entity, collisionData));
+                        _events.Send(second.Entity, new OnHitEvent(second.Entity, first.Entity, collisionData));
+                        _hitHistory[(first.Entity, second.Entity)] = _time.Current;
+                        _hitHistory[(second.Entity, first.Entity)] = _time.Current;
+                    }
+
                     hasCollisions = true;
                     Action? resolver = (first, second) switch
                     {

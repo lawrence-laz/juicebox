@@ -383,29 +383,31 @@ public static class EventEntityExtensions
         return builder.Entity;
     }
 
+    public record struct OnHitBuilder(Entity Entity, Func<Entity, bool>? OtherFilter, Func<Entity, CollisionData, bool>? OtherAndHitFilter);
+    public static OnHitBuilder OnHit(this Entity entity) => new(entity, null, null);
+    public static OnHitBuilder OnHit(this Entity entity, Func<Entity, bool> otherFilter) => new(entity, otherFilter, null);
+    public static OnHitBuilder OnHit(this Entity entity, Func<Entity, CollisionData, bool> otherAndHitFilter) => new(entity, null, otherAndHitFilter);
+    public record OnHitEvent(Entity Self, Entity Other, CollisionData Hit);
+    public delegate void OnHitHandler(Entity other, Entity self, CollisionData hit);
+    public static Entity Do(this OnHitBuilder builder, OnHitHandler handler)
+    {
+        Juicebox.Instance._events._entityHandlers.AddHandler<OnHitEvent>(builder.Entity, onHitEvent =>
+        {
+            if ((builder.OtherFilter?.Invoke(onHitEvent.Other) ?? true)
+                && (builder.OtherAndHitFilter?.Invoke(onHitEvent.Other, onHitEvent.Hit) ?? true))
+            {
+                handler.Invoke(onHitEvent.Other, builder.Entity, onHitEvent.Hit);
+            }
+        });
+        return builder.Entity;
+    }
+
     public record struct OnEachFrameBuilder(Entity Entity);
     public static OnEachFrameBuilder OnEachFrame(this Entity entity) => new(entity);
     public delegate void OnEachFrameHandler(Entity entity);
     public static Entity Do(this OnEachFrameBuilder builder, OnEachFrameHandler handler)
     {
         Juicebox.Instance._events.OnEachFrameEventHandlers.Add(new JuiceboxEventHanlder(builder.Entity, null, handler));
-        return builder.Entity;
-    }
-
-    public static OnHitOtherConditionBuilder OnHit(this Entity entity) => new(entity, null);
-    public delegate bool OnHitOtherCondition(Entity other);
-    public record struct OnHitOtherConditionBuilder(Entity Entity, OnHitOtherCondition? Condition);
-    public static OnHitOtherConditionBuilder OnHit(this Entity entity, OnHitOtherCondition condition) => new(entity, condition);
-    public delegate void OnHitHandler();
-    public static Entity Do(this OnHitOtherConditionBuilder builder, OnHitHandler handler)
-    {
-        Juicebox.Instance._events.OnHitEventHandlers.Add(new JuiceboxEventHanlder(builder.Entity, builder.Condition, handler));
-        return builder.Entity;
-    }
-    public delegate void OnHitThisAndOtherHandler(Entity @this, Entity other);
-    public static Entity Do(this OnHitOtherConditionBuilder builder, OnHitThisAndOtherHandler handler)
-    {
-        Juicebox.Instance._events.OnHitEventHandlers.Add(new JuiceboxEventHanlder(builder.Entity, builder.Condition, handler));
         return builder.Entity;
     }
 }
@@ -885,7 +887,6 @@ public record JuiceboxEventHanlder(Entity Entity, object? Condition, object Hand
 public class Events
 {
     public List<JuiceboxEventHanlder> OnEachFrameEventHandlers { get; } = new();
-    public List<JuiceboxEventHanlder> OnHitEventHandlers { get; } = new();
     public readonly EventHandlers _handlers = new();
     public readonly EventHandlers<Entity> _entityHandlers = new();
 
@@ -965,9 +966,10 @@ public class Time
     public Stopwatch _stopwatch;
     public float _lastUpdate;
     public float _delta;
+    private float _current = 0;
 
     public float Delta => _delta;
-    public float Current => _stopwatch.ElapsedMilliseconds / 1000f;
+    public float Current => _current;
 
     public void Start()
     {
@@ -979,6 +981,11 @@ public class Time
         var current = _stopwatch.ElapsedMilliseconds / 1000f;
         _delta = current - _lastUpdate;
         _lastUpdate = current;
+    }
+
+    public void AfterUpdate()
+    {
+        _current = _stopwatch.ElapsedMilliseconds / 1000f;
     }
 }
 

@@ -24,10 +24,15 @@ var createBall = () =>
             // Console.WriteLine($"Sprite.center={sprite.Center}, sprite.FullRectangle.center={sprite.FullRectangle.Center}");
         })
         .WithCircleCollider()
-        .WithBody();
+        .WithBody()
+        .OnHit(other => other.Name == "bottom-bar").Do((bar, ball, hit) => Console.WriteLine($"{ball.Name} hit {bar.Name}"))
+        .OnHit(other => other.Tags.Contains("first-ball")).Do((firstBall, ball, hit) => Console.WriteLine($"{ball.Name} hit {firstBall.Name}"))
+        .OnHit().Do((other, ball, hit) => Console.WriteLine($"---------------------------"))
+        ;
 };
 
 var ball = Juicebox.NewEntity("ball")
+    .WithTags("first-ball")
     .WithSprite("./resources/ball.png", sprite => sprite.Center = sprite.FullRectangle.Center)
     .WithCircleCollider()
     // .WithRectangleCollider()
