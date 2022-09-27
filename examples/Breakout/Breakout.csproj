@@ -15,6 +15,28 @@
     <Nullable>enable</Nullable>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <!-- <LangVersion>preview</LangVersion> -->
-  </PropertyGroup>
+    <!-- <PublishSingleFile>true</PublishSingleFile> -->
+    <!-- <SelfContained>true</SelfContained> -->
+    <!-- <RuntimeIdentifier>linux-x64</RuntimeIdentifier> -->
+    <!-- <PublishReadyToRun>true</PublishReadyToRun> -->
+    <!-- <PublishTrimmed>true</PublishTrimmed> -->
+    <!-- <TrimMode>Link</TrimMode> -->
+</PropertyGroup>
+
+ <ItemGroup>
+     <None Include="$(MSBuildThisFileDirectory)resources\**" CopyToOutputDirectory="Always" LinkBase="resources\" />
+ </ItemGroup>
+
+ <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+     <None Include="$(MSBuildThisFileDirectory)..\..\lib\win-x64\**" CopyToOutputDirectory="Always" />
+ </ItemGroup>
+
+ <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x86'">
+    <None Include="$(SolutionDir)\lib\win-x86\**" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" />
+ </ItemGroup>
+
+ <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+    <None Include="$(SolutionDir)\lib\linux-x64\**" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" />
+ </ItemGroup>
 
 </Project>

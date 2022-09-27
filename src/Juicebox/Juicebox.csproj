@@ -11,6 +11,37 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="6.0.0" />
     <PackageReference Include="ppy.SDL2-CS" Version="1.0.596-alpha" />
-  </ItemGroup>
+ </ItemGroup>
+
+ <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <!-- <Message Text="Publishing for Windows 64 bit" /> -->
+    <None Include="$(MSBuildThisFileDirectory)..\..\lib\win-x64\SDL2_image.dll" Visible="false">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </None>
+    <None Include="$(MSBuildThisFileDirectory)..\..\lib\win-x64\SDL2_gfx.dll" Visible="false">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </None>
+    <None Include="$(MSBuildThisFileDirectory)..\..\lib\win-x64\SDL2_ttf.dll" Visible="false">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </None>
+    <None Include="$(MSBuildThisFileDirectory)..\..\lib\win-x64\SDL2_mixer.dll" Visible="false">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </None>
+ </ItemGroup>
+
+ <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x86'">
+    <!-- <Message Text="Publishing for Windows 32 bit" /> -->
+    <None Include="$(SolutionDir)\lib\win-x86\**" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" />
+ </ItemGroup>
+
+ <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+    <!-- <Message Text="Publishing for Linux 64 bit" /> -->
+    <None Include="$(SolutionDir)\lib\linux-x64\**" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" />
+ </ItemGroup>
 
 </Project>
+
