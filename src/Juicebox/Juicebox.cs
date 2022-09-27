@@ -1173,6 +1173,7 @@ public class JuiceboxInstance
     public readonly Gizmos _gizmos;
     public Camera _camera;
     public readonly Collisions _collisions;
+    private readonly AudioPlayer _audioPlayer;
     private readonly SdlFacade _sdl;
     private readonly EntityFactory _entityFactory;
     private readonly EntityRepository _entityRepository;
@@ -1197,7 +1198,8 @@ public class JuiceboxInstance
         Time time,
         Physics physics,
         Gizmos gizmos,
-        Collisions collisions)
+        Collisions collisions,
+        AudioPlayer audioPlayer)
     {
         Juicebox.Instance = this;
         _sdl = sdl;
@@ -1214,6 +1216,7 @@ public class JuiceboxInstance
         _physics = physics;
         _gizmos = gizmos;
         _collisions = collisions;
+        _audioPlayer = audioPlayer;
     }
 
     public void Start()
@@ -1233,6 +1236,9 @@ public class JuiceboxInstance
     {
         _sdl.Stop();
     }
+
+    public void PlaySound(Sound sound) => _audioPlayer.Play(sound);
+    public void PlaySound(string soundPath) => _audioPlayer.Play(soundPath);
 
     public SpriteRenderer GetSprite(Entity entity, string path, Action<Sprite>? configureSprite)
     {
@@ -1327,6 +1333,9 @@ public static class Juicebox
     {
         _instance.BeginMainLoopThisIsBadNameFixMePlease();
     }
+    public static void PlaySound(Sound sound) => Instance.PlaySound(sound);
+    public static void PlaySound(string soundPath) => Instance.PlaySound(soundPath);
+
 }
 
 public static class EnumerableExtensions

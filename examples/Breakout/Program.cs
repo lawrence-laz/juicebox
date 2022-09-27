@@ -28,7 +28,7 @@ var createBall = () =>
         .WithBody()
         .OnHit(other => other.Name == "bottom-bar").Do((bar, ball, hit) => Console.WriteLine($"{ball.Name} hit {bar.Name}"))
         .OnHit(other => other.Tags.Contains("first-ball")).Do((firstBall, ball, hit) => Console.WriteLine($"{ball.Name} hit {firstBall.Name}"))
-        .OnHit().Do((other, ball, hit) => Console.WriteLine($"---------------------------"))
+        .OnHit().Do((other, ball, hit) => Juicebox.PlaySound("./resources/metal-hit.wav"))
         ;
 };
 

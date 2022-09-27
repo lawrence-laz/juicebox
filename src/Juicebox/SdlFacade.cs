@@ -5,6 +5,7 @@ using static SDL2.SDL_ttf;
 using static SDL2.SDL_gfx;
 using JuiceboxEngine;
 using SDL2;
+using static SDL2.SDL_mixer;
 
 namespace JuiceboxEngine;
 
@@ -13,8 +14,16 @@ public class SdlFacade
     private IntPtr _window;
     private IntPtr _renderer;
     private readonly Dictionary<Sprite, IntPtr> _spriteTextures = new();
+
+    internal void PlaySound(Sound sound)
+    {
+        var wav = _sounds[sound];
+        Mix_PlayChannel(-1, wav, 0);
+    }
+
     private readonly Dictionary<Font, IntPtr> _fonts = new();
     private readonly Dictionary<Text, IntPtr> _textTextures = new();
+    private readonly Dictionary<Sound, IntPtr> _sounds = new();
     private Quad _renderingQuad = new();
 
     public void Start()
@@ -25,6 +34,11 @@ public class SdlFacade
         if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
         {
             Console.WriteLine("Failed to initialize SDL: " + SDL_GetError());
+        }
+
+        if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0)
+        {
+            Console.WriteLine($"SDL_mixer could not initialize! Error: {Mix_GetError()}");
         }
 
         if (TTF_Init() != 0)
@@ -50,6 +64,13 @@ public class SdlFacade
 
         Juicebox.Instance.OnLoadSprite = LoadSprite;
     }
+
+    internal void LoadSound(Sound sound)
+    {
+        var wav = Mix_LoadWAV(sound.Path);
+        _sounds[sound] = wav;
+    }
+
 
     public void BeforeUpdate()
     {

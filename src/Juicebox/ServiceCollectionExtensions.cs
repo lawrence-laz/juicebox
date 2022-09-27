@@ -15,6 +15,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Input>();
         services.AddSingleton<Physics>();
         services.AddSingleton<Time>();
+        services.AddSingleton<AudioPlayer>();
 
         services
             .AddSingleton<SpriteRendererSystem>();
@@ -23,11 +24,13 @@ public static class ServiceCollectionExtensions
             .AddSingleton<EntityFactory>()
             .AddSingleton<SpriteFactory>()
             .AddSingleton<TextFactory>()
+            .AddSingleton<SoundFactory>()
             .AddSingleton<FontFactory>();
 
         services
             .AddSingleton<EntityRepository>()
             .AddSingleton<SpriteRepository>()
+            .AddSingleton<SoundRepository>()
             .AddSingleton<FontRepository>();
 
         return services;
