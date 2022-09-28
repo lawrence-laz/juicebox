@@ -40,6 +40,8 @@ var timer = Juicebox.NewEntity("timer")
     .OnEachFrame().Do(entity => timerText.Value = TimeSpan.FromSeconds(Juicebox.Time.Current).ToString())
     ;
 
+timerText.Order = 100;
+
 var ball = Juicebox.NewEntity("ball")
     .WithTags("first-ball")
     .WithSprite("./resources/ball.png", sprite => sprite.Center = sprite.FullRectangle.Center)

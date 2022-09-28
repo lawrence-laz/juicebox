@@ -545,11 +545,17 @@ public class SpriteFactory
     }
 }
 
-public class SpriteRenderer : IComponent
+public interface IRenderInOrder
+{
+    public int Order { get; set; }
+}
+
+public class SpriteRenderer : IComponent, IRenderInOrder
 {
     public Entity Entity { get; init; }
     public Sprite Sprite;
     public Rectangle SourceRectangle { get; set; }
+    public int Order { get; set; }
 
     public SpriteRenderer(Entity entity, Sprite sprite)
     {
@@ -686,7 +692,7 @@ public class TextFactory
     }
 }
 
-public class Text : IComponent
+public class Text : IComponent, IRenderInOrder
 {
     private string _value = string.Empty;
 
@@ -703,6 +709,12 @@ public class Text : IComponent
             }
         }
     }
+
+    /// <summary>
+    /// Rendering order among other renderables like sprites, texts, etc.
+    /// Higher number goes on top of others.
+    /// </summary>
+    public int Order { get; set; }
     public Font Font { get; set; }
     public Entity Entity { get; init; }
     public Vector2 Center { get => Entity.Transform.Center; set => Entity.Transform.Center = value; }

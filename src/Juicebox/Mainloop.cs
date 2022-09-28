@@ -60,7 +60,7 @@ public class MainLoop
 
             _sdl.BeforeUpdate();
 
-            foreach (var entity in _entityRepository.GetAll())
+            foreach (var entity in _entityRepository.GetAll().OrderBy(e => e.GetComponent<IRenderInOrder>()?.Order))
             {
                 // Animator
                 if (entity.GetComponent<Animator>() is Animator animator)
