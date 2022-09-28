@@ -18,7 +18,7 @@ juiceBox.Start();
 
 var createBall = () =>
 {
-    return Juicebox.NewEntity($"ball {Guid.NewGuid()}")
+    var smallBall = Juicebox.NewEntity($"ball {Guid.NewGuid()}")
         .WithLocalScale(0.2f)
         .WithSprite("./resources/ball.png", sprite =>
         {
@@ -27,11 +27,16 @@ var createBall = () =>
             // Console.WriteLine($"Sprite.center={sprite.Center}, sprite.FullRectangle.center={sprite.FullRectangle.Center}");
         })
         .WithCircleCollider()
-        .WithBody()
+        .WithBody(out var smallBallBody)
         // .OnHit(other => other.Name == "bottom-bar").Do((bar, ball, hit) => Console.WriteLine($"{ball.Name} hit {bar.Name}"))
         // .OnHit(other => other.Tags.Contains("first-ball")).Do((firstBall, ball, hit) => Console.WriteLine($"{ball.Name} hit {firstBall.Name}"))
         .OnHit().Do((other, ball, hit) => Juicebox.PlaySound("./resources/metal-hit.wav"))
         ;
+
+    smallBallBody.Drag = 0.001f;
+    smallBallBody.Bounciness = 0.9f;
+
+    return smallBall;
 };
 
 var timer = Juicebox.NewEntity("timer")
@@ -73,8 +78,11 @@ var ball = Juicebox.NewEntity("ball")
         }
     })
     .OnEachFrame().Do(entity => entity.RotationDegrees += Juicebox.Input.IsPressed(KeyboardButton.Q) ? -2 : Juicebox.Input.IsPressed(KeyboardButton.E) ? 2 : 0)
-    .WithBody()
+    .WithBody(out var ballBody)
     ;
+
+ballBody.Bounciness = 0.5f;
+ballBody.Drag = 0.1f;
 
 var childBall = Juicebox.NewEntity("child-ball")
     .WithSprite("./resources/ball.png", sprite => sprite.Center = sprite.FullRectangle.Center)

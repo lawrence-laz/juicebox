@@ -53,14 +53,14 @@ public class MainLoop
             _collisions.Update();
             Juicebox.Physics.Update(Juicebox.Time.Delta);
 
-            foreach (var handler in _events.OnEachFrameEventHandlers)
+            foreach (var handler in _events.OnEachFrameEventHandlers.ToList())
             {
                 ((EventEntityExtensions.OnEachFrameHandler)handler.Handler)(handler.Entity);
             }
 
             _sdl.BeforeUpdate();
 
-            foreach (var entity in _entityRepository.GetAll().OrderBy(e => e.GetComponent<IRenderInOrder>()?.Order))
+            foreach (var entity in _entityRepository.GetAll().OrderBy(e => e.GetComponent<IRenderInOrder>()?.Order).ToList())
             {
                 // Animator
                 if (entity.GetComponent<Animator>() is Animator animator)

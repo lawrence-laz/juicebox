@@ -94,7 +94,9 @@ public class Collisions
             hasCollisions = false;
             colliders.ForeachPermutePairs((first, second) =>
             {
-                if (first.Entity.GetComponent<Body>() is null && second.Entity.GetComponent<Body>() is null)
+                var firstBody = first.Entity.GetComponent<Body>();
+                var secondBody = second.Entity.GetComponent<Body>();
+                if (firstBody is null && secondBody is null)
                 {
                     return; // Colliders without bodies do not collide.
                 }
@@ -119,6 +121,17 @@ public class Collisions
                     if (!_hitHistory.TryGetValue((first.Entity, second.Entity), out var lastHitTime)
                         || lastHitTime + _onHitPeriod <= _time.Current)
                     {
+                        if (firstBody is not null)
+                        {
+                            firstBody.Velocity *= firstBody.Bounciness;
+                            firstBody.IsResting = false;
+                        }
+                        if (secondBody is not null)
+                        {
+                            secondBody.Velocity *= secondBody.Bounciness;
+                            secondBody.IsResting = false;
+                        }
+
                         _events.Send(first.Entity, new OnHitEvent(first.Entity, second.Entity, collisionData));
                         _events.Send(second.Entity, new OnHitEvent(second.Entity, first.Entity, collisionData));
                         _hitHistory[(first.Entity, second.Entity)] = _time.Current;
@@ -150,7 +163,14 @@ public class Collisions
                 body.Velocity = Vector2.Zero;
                 Console.WriteLine("NaN speeds");
             }
-
+            if (body.Velocity.Length < 4.0f)
+            {
+                body.Velocity = Vector2.Zero;
+            }
+            if (body.Velocity.IsZero())
+            {
+                body.IsResting = true;
+            }
         }
         _resolver._bounceOffDirections.Clear();
     }
@@ -192,21 +212,23 @@ public class CollisionResolver
         var resolveOffset = a.Radius - a.Circle.Center.DistanceTo(collisionCenter);
         var aBody = a.Entity.GetComponentInParent<Body>();
         var bBody = b.Entity.GetComponentInParent<Body>();
+        var aTransform = aBody?.Entity.Transform ?? a.Entity.Transform;
+        var bTransform = bBody?.Entity.Transform ?? b.Entity.Transform;
 
         if (aBody is null && bBody is not null)
         {
-            b.Entity.Position += collisionCenter.DirectionTo(b.Circle.Center) * resolveOffset * 2 * ChaosMultiplyer + ChaosVector;
+            bTransform.Position += (collisionCenter.DirectionTo(b.Circle.Center) * resolveOffset * 2 * ChaosMultiplyer) + ChaosVector;
             _bounceOffDirections.Add(bBody, Vector2.Reflect(bBody.Velocity, a.Circle.Center.DirectionTo(collisionCenter)).Normalized);
         }
         else if (bBody is null && aBody is not null)
         {
-            a.Entity.Position += collisionCenter.DirectionTo(a.Circle.Center) * resolveOffset * 2 * ChaosMultiplyer + ChaosVector;
+            aTransform.Position += (collisionCenter.DirectionTo(a.Circle.Center) * resolveOffset * 2 * ChaosMultiplyer) + ChaosVector;
             _bounceOffDirections.Add(aBody, Vector2.Reflect(aBody.Velocity, b.Circle.Center.DirectionTo(collisionCenter)).Normalized);
         }
         else if (aBody is not null && bBody is not null)
         {
-            a.Entity.Position += collisionCenter.DirectionTo(a.Circle.Center) * resolveOffset * ChaosMultiplyer + ChaosVector;
-            b.Entity.Position += collisionCenter.DirectionTo(b.Circle.Center) * resolveOffset * ChaosMultiplyer + ChaosVector;
+            aTransform.Position += (collisionCenter.DirectionTo(a.Circle.Center) * resolveOffset * ChaosMultiplyer) + ChaosVector;
+            bTransform.Position += (collisionCenter.DirectionTo(b.Circle.Center) * resolveOffset * ChaosMultiplyer) + ChaosVector;
             _bounceOffDirections.Add(aBody, Vector2.Reflect(aBody.Velocity, b.Circle.Center.DirectionTo(collisionCenter)).Normalized);
             _bounceOffDirections.Add(bBody, Vector2.Reflect(bBody.Velocity, a.Circle.Center.DirectionTo(collisionCenter)).Normalized);
         }

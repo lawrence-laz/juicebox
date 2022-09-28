@@ -420,6 +420,11 @@ public static class TagEntityExtensions
 public static class BodyEntityExtensions
 {
     public static Entity WithBody(this Entity entity) => entity.WithComponent(Juicebox.Physics.NewBody(entity));
+    public static Entity WithBody(this Entity entity, out Body body)
+    {
+        body = Juicebox.Physics.NewBody(entity);
+        return entity.WithComponent(body);
+    }
 }
 
 public static class TextEntityExtensions
@@ -1079,8 +1084,24 @@ public class Time
 
 public class Body : IComponent
 {
+    private float _drag;
+
     public Vector2 Velocity { get; set; } = Vector2.Zero;
     public Entity Entity { get; init; }
+    public bool IsResting { get; set; } = false;
+    public float Bounciness { get; set; } = 1f;
+    public float Drag
+    {
+        get => _drag;
+        set
+        {
+            if (value is < 0 or > 1)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+            _drag = value;
+        }
+    }
 
     public Body(Entity entity)
     {
@@ -1092,7 +1113,7 @@ public class Physics
 {
     public List<(Entity Entity, Body Body)> Bodies = new();
 
-    public Vector2 Gravity = Vector2.Down * 50;
+    public Vector2 Gravity = Vector2.Down * 500;
 
     public Body NewBody(Entity entity) => Bodies.AddAndReturnSelf((Entity: entity, Body: new(entity))).Body;
 
@@ -1100,6 +1121,15 @@ public class Physics
     {
         foreach (var (Entity, Body) in Bodies)
         {
+            if (Body.IsResting)
+            {
+                continue;
+            }
+
+            if (Body.Velocity.Length > 0.001f && Body.Drag != 0)
+            {
+                Body.Velocity -= -Body.Velocity.Normalized * Body.Drag * delta;
+            }
             Body.Velocity += Gravity * delta;
             Entity.Position += Body.Velocity * delta;
         }

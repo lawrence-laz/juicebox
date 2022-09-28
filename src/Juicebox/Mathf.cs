@@ -16,6 +16,8 @@ public static class Mathf
     public static long Max(long a, long b) => a >= b ? a : b;
     public static int Max(int a, int b) => a >= b ? a : b;
 
+    public static float Average(params float[] values) => values.Sum() / values.Length;
+
     public static int Swap(int current, int a, int b) => current == a ? b : a;
 
     public static float Swap(float current, float a, float b) => current == a ? b : a;
