@@ -36,6 +36,11 @@ public static class TransformEntityExtensions
         entity.Transform.Position = position;
         return entity;
     }
+    public static Entity WithPosition(this Entity entity, float x, float y)
+    {
+        entity.Transform.Position = new Vector2(x, y);
+        return entity;
+    }
     public static Entity WithLocalPosition(this Entity entity, Vector2 position)
     {
         entity.Transform.LocalPosition = position;
@@ -405,6 +410,11 @@ public static class BodyEntityExtensions
 public static class TextEntityExtensions
 {
     public static Entity WithText(this Entity entity, string text, string font) => entity.WithComponent(Juicebox.Instance.NewText(entity, text, font));
+    public static Entity WithText(this Entity entity, string value, string font, out Text text)
+    {
+        text = Juicebox.Instance.NewText(entity, value, font);
+        return entity;
+    }
 }
 
 public static class EventEntityExtensions
@@ -678,11 +688,27 @@ public class TextFactory
 
 public class Text : IComponent
 {
-    public string Value { get; set; } = string.Empty;
+    private string _value = string.Empty;
+
+    public string Value
+    {
+        get => _value;
+        set
+        {
+            var oldValue = _value;
+            _value = value;
+            if (oldValue != value)
+            {
+                OnValueChanged?.Invoke(this, oldValue);
+            }
+        }
+    }
     public Font Font { get; set; }
     public Entity Entity { get; init; }
     public Vector2 Center { get => Entity.Transform.Center; set => Entity.Transform.Center = value; }
     public Rectangle Rectangle;
+
+    public event Action<Text, string> OnValueChanged;
 
     public Text(Entity entity, Font font)
     {
@@ -1238,7 +1264,7 @@ public class JuiceboxInstance
     }
 
     public void PlaySound(Sound sound) => _audioPlayer.Play(sound);
-    public void PlaySound(string soundPath) => _audioPlayer.Play(soundPath);
+    public void PlaySound(string soundPath) => _audioPlayer.PlaySound(soundPath);
 
     public SpriteRenderer GetSprite(Entity entity, string path, Action<Sprite>? configureSprite)
     {
@@ -1270,6 +1296,11 @@ public class JuiceboxInstance
     internal void Destroy(Entity entity)
     {
         _entityRepository.Remove(entity);
+    }
+
+    internal void PlayMusic(string musicPath)
+    {
+        _audioPlayer.PlayMusic(musicPath);
     }
 }
 
@@ -1335,7 +1366,10 @@ public static class Juicebox
     }
     public static void PlaySound(Sound sound) => Instance.PlaySound(sound);
     public static void PlaySound(string soundPath) => Instance.PlaySound(soundPath);
-
+    public static void PlayMusic(string musicPath)
+    {
+        _instance.PlayMusic(musicPath);
+    }
 }
 
 public static class EnumerableExtensions

@@ -25,12 +25,14 @@ public static class ServiceCollectionExtensions
             .AddSingleton<SpriteFactory>()
             .AddSingleton<TextFactory>()
             .AddSingleton<SoundFactory>()
+            .AddSingleton<MusicFactory>()
             .AddSingleton<FontFactory>();
 
         services
             .AddSingleton<EntityRepository>()
             .AddSingleton<SpriteRepository>()
             .AddSingleton<SoundRepository>()
+            .AddSingleton<MusicRepository>()
             .AddSingleton<FontRepository>();
 
         return services;

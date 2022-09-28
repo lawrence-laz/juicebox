@@ -14,6 +14,8 @@ var services = new ServiceCollection()
 var juiceBox = services.GetRequiredService<JuiceboxInstance>();
 juiceBox.Start();
 
+// Juicebox.PlayMusic("./resources/music.wav");
+
 var createBall = () =>
 {
     return Juicebox.NewEntity($"ball {Guid.NewGuid()}")
@@ -31,6 +33,12 @@ var createBall = () =>
         .OnHit().Do((other, ball, hit) => Juicebox.PlaySound("./resources/metal-hit.wav"))
         ;
 };
+
+var timer = Juicebox.NewEntity("timer")
+    .WithPosition(new(0, 0))
+    .WithText("0 fwefwefwefwef", font: "./resources/airstrike.ttf", out var timerText)
+    .OnEachFrame().Do(entity => timerText.Value = TimeSpan.FromSeconds(Juicebox.Time.Current).ToString())
+    ;
 
 var ball = Juicebox.NewEntity("ball")
     .WithTags("first-ball")
@@ -67,6 +75,7 @@ bar.Transform.Position = new(0, 200);
 // bar2.Transform.Position = new(-50, 300);
 
 var powerUp = Juicebox.NewEntity("powerup")
+    .WithPosition(500, 0)
     .WithAnimation("./resources/power-up-100.json");
 
 Juicebox.Camera.Entity

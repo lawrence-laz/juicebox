@@ -24,6 +24,7 @@ public class SdlFacade
     private readonly Dictionary<Font, IntPtr> _fonts = new();
     private readonly Dictionary<Text, IntPtr> _textTextures = new();
     private readonly Dictionary<Sound, IntPtr> _sounds = new();
+    private readonly Dictionary<Music, IntPtr> _musics = new();
     private Quad _renderingQuad = new();
 
     public void Start()
@@ -65,10 +66,31 @@ public class SdlFacade
         Juicebox.Instance.OnLoadSprite = LoadSprite;
     }
 
+    internal void PlayMusic(Music music)
+    {
+        var encodedWav = _musics[music];
+        Mix_PlayMusic(encodedWav, -1);
+    }
+
+    internal void PauseMusic()
+    {
+        Mix_PauseMusic();
+    }
+
+    internal void ResumeMusic()
+    {
+        Mix_ResumeMusic();
+    }
+
     internal void LoadSound(Sound sound)
     {
         var wav = Mix_LoadWAV(sound.Path);
         _sounds[sound] = wav;
+    }
+    internal void LoadMusic(Music music)
+    {
+        var encodedWav = Mix_LoadMUS(music.Path);
+        _musics[music] = encodedWav;
     }
 
 
@@ -110,13 +132,17 @@ public class SdlFacade
             LoadFont(text.Font);
         }
         var fontColor = new SDL_Color() { r = 255, g = 255, b = 255, a = 255 };
-        var surface = TTF_RenderText_Solid(font, text.Value, fontColor);
-        var texture = SDL_CreateTextureFromSurface(_renderer, surface);
-        SDL_FreeSurface(surface);
-        SDL_QueryTexture(texture, out var _, out var _, out var textWidth, out var textHeight);
-        text.Rectangle.Size = new(textWidth, textHeight);
-        var textRect = new SDL_Rect() { x = 0, y = 0, w = textWidth, h = textHeight };
-        _textTextures[text] = texture;
+        var backgroundColor = new SDL_Color() { r = 0, g = 0, b = 0, a = 0 };
+        text.OnValueChanged += (text, oldValue) =>
+        {
+            var surface = TTF_RenderUTF8_Shaded(font, text.Value, fontColor, backgroundColor);
+            var texture = SDL_CreateTextureFromSurface(_renderer, surface);
+            SDL_FreeSurface(surface);
+            SDL_QueryTexture(texture, out var _, out var _, out var textWidth, out var textHeight);
+            text.Rectangle.Size = new(textWidth, textHeight);
+            var textRect = new SDL_Rect() { x = 0, y = 0, w = textWidth, h = textHeight };
+            _textTextures[text] = texture;
+        };
     }
 
     public void RenderText(Text text)
