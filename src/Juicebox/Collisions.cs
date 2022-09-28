@@ -154,7 +154,6 @@ public class Collisions
         }
         _resolver._bounceOffDirections.Clear();
     }
-
 }
 
 public class DictionaryList<TKey, TValue> : IEnumerable<(TKey Key, IEnumerable<TValue> Values)>
@@ -285,6 +284,30 @@ public class CollisionResolver
     }
 }
 
+public static class CollisionCaster
+{
+    public static IEnumerable<Entity> PointCast(Vector2 point)
+    {
+        var hits = new List<Entity>();
+        var colliders = Juicebox.FindComponents<ICollider>();
+        foreach (var collider in colliders)
+        {
+            var isColliding = collider switch
+            {
+                CircleCollider circle => CollisionDetector.AreColliding(point, circle.Circle, out var _),
+                RectangleCollider rectangle => CollisionDetector.AreColliding(point, rectangle.Rectangle, out var _),
+                _ => throw new NotSupportedException($"Collider '{collider.GetType().Name}' is not supported in point casting, implement it.")
+            };
+            if (isColliding)
+            {
+                hits.Add(collider.Entity);
+            }
+        }
+
+        return hits;
+    }
+}
+
 public static class CollisionDetector
 {
     public static bool AreColliding(Circle a, Circle b, out CollisionData collisionData)
@@ -302,6 +325,26 @@ public static class CollisionDetector
             Console.WriteLine("Well this sucks");
         }
         return true;
+    }
+
+    public static bool AreColliding(Vector2 point, Circle circle, out CollisionData collision)
+    {
+        var offsetFromCenter = point - circle.Center;
+        if (offsetFromCenter.Length > circle.Radius)
+        {
+            collision = default;
+            return false;
+        }
+
+        collision = new(point, offsetFromCenter.Normalized);
+        return true;
+    }
+
+    public static bool AreColliding(Vector2 point, Rectangle rectangle, out CollisionData collision)
+    {
+        var isColliding = rectangle.Contains(point);
+        collision = isColliding ? (new(point, (point - rectangle.Center).Normalized)) : default;
+        return isColliding;
     }
 
     public static bool AreColliding(Rectangle rectangle, Circle circle, out CollisionData collisionData)

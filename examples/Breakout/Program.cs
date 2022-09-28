@@ -28,8 +28,8 @@ var createBall = () =>
         })
         .WithCircleCollider()
         .WithBody()
-        .OnHit(other => other.Name == "bottom-bar").Do((bar, ball, hit) => Console.WriteLine($"{ball.Name} hit {bar.Name}"))
-        .OnHit(other => other.Tags.Contains("first-ball")).Do((firstBall, ball, hit) => Console.WriteLine($"{ball.Name} hit {firstBall.Name}"))
+        // .OnHit(other => other.Name == "bottom-bar").Do((bar, ball, hit) => Console.WriteLine($"{ball.Name} hit {bar.Name}"))
+        // .OnHit(other => other.Tags.Contains("first-ball")).Do((firstBall, ball, hit) => Console.WriteLine($"{ball.Name} hit {firstBall.Name}"))
         .OnHit().Do((other, ball, hit) => Juicebox.PlaySound("./resources/metal-hit.wav"))
         ;
 };
@@ -61,6 +61,17 @@ var ball = Juicebox.NewEntity("ball")
     // .OnEachFrame().Do(entity => Juicebox.DrawCircle(entity.Position, 50, Color.Green))
     .OnEachFrame().Do(entity => Juicebox.DrawLine(Vector2.Zero, entity.Position, Color.Blue))
     .OnPress().Do(entity => Console.WriteLine("Stop pressing me"))
+    .OnEachFrame().Do(_ =>
+    {
+        if (Juicebox.Input.IsDown(MouseButton.Left))
+        {
+            var entities = Juicebox.PointCast(Juicebox.Input.PointerWorld);
+            foreach (var entity in entities)
+            {
+                Console.WriteLine($"Pressed '{entity.Name}'");
+            }
+        }
+    })
     .OnEachFrame().Do(entity => entity.RotationDegrees += Juicebox.Input.IsPressed(KeyboardButton.Q) ? -2 : Juicebox.Input.IsPressed(KeyboardButton.E) ? 2 : 0)
     .WithBody()
     ;

@@ -1382,6 +1382,11 @@ public static class Juicebox
     {
         _instance.PlayMusic(musicPath);
     }
+
+    public static IEnumerable<Entity> PointCast(Vector2 point)
+    {
+        return CollisionCaster.PointCast(point);
+    }
 }
 
 public static class EnumerableExtensions
