@@ -190,8 +190,8 @@ public class CollisionResolver
     {
         var collisionCenter = collisionData.Center;
         var resolveOffset = a.Radius - a.Circle.Center.DistanceTo(collisionCenter);
-        var aBody = a.Entity.GetComponent<Body>();
-        var bBody = b.Entity.GetComponent<Body>();
+        var aBody = a.Entity.GetComponentInParent<Body>();
+        var bBody = b.Entity.GetComponentInParent<Body>();
 
         if (aBody is null && bBody is not null)
         {

@@ -150,6 +150,7 @@ public struct Matrix33
 
 public class Transform
 {
+    public Entity Entity { get; init; }
     public Vector2 LocalPosition { get; set; }
     public Vector2 Center { get; set; }
     public Vector2 LocalScale { get; set; } = Vector2.One;
@@ -157,6 +158,11 @@ public class Transform
     public Transform? Parent { get; set; }
     public List<Transform> Children { get; } = new();
     public Vector2 Scale { get; set; } = Vector2.One;
+
+    public Transform(Entity entity)
+    {
+        Entity = entity;
+    }
 
     public Vector2 Position
     {
@@ -362,7 +368,7 @@ public class Entity
         get => Transform.RotationDegrees;
         set => Transform.RotationDegrees = value;
     }
-    public Transform Transform { get; } = new();
+    public Transform Transform { get; }
     public bool IsActive { get; set; } = true;
 
     public SpriteRenderer? SpriteRenderer { get; set; }
@@ -370,6 +376,7 @@ public class Entity
 
     public Entity(string name)
     {
+        Transform = new(this);
         Name = name;
     }
 
@@ -380,6 +387,14 @@ public class Entity
     }
 
     public T? GetComponent<T>() => _components.OfType<T>().FirstOrDefault();
+    public T? GetComponentInParent<T>()
+    {
+        return GetComponent<T>() is T component
+            ? component
+            : Transform.Parent is Transform parent
+            ? parent.Entity.GetComponentInParent<T>()
+            : default;
+    }
 
     public void Destroy()
     {

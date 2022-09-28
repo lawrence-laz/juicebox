@@ -76,6 +76,14 @@ var ball = Juicebox.NewEntity("ball")
     .WithBody()
     ;
 
+var childBall = Juicebox.NewEntity("child-ball")
+    .WithSprite("./resources/ball.png", sprite => sprite.Center = sprite.FullRectangle.Center)
+    .WithCircleCollider()
+    .WithParent(ball)
+    ;
+
+childBall.Transform.LocalPosition = new Vector2(200, 0);
+
 var bar = Juicebox.NewEntity("bottom-bar")
     .WithLocalScale(0.8f)
     .WithSprite("./resources/blue-tile.png")
