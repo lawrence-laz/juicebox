@@ -73,81 +73,6 @@ public static class TransformEntityExtensions
     }
 }
 
-public struct Matrix22
-{
-    public float _11, _12, _21, _22;
-
-    public Matrix22(float m11, float m12, float m21, float m22)
-    {
-        _11 = m11; _12 = m12; _21 = m21; _22 = m22;
-    }
-
-    public static Vector2 operator *(Matrix22 matrix, Vector2 vector) => new(
-        (vector.X * matrix._11) + (vector.Y * matrix._12),
-        (vector.X * matrix._21) + (vector.Y * matrix._22));
-}
-
-public static class Matrix33Extensions
-{
-    public static Matrix33 ToTranslationMatrix(this Vector2 position) => new(
-    1, 0, position.X,
-    0, 1, position.Y,
-    0, 0, 1
-    );
-
-    public static Matrix33 ToRotationMatrix(this double radians) => new(
-    (float)Math.Cos(radians), (float)-Math.Sin(radians), 0,
-    (float)Math.Sin(radians), (float)Math.Cos(radians), 0,
-    0, 0, 1
-    );
-
-    public static Matrix33 ToScaleMatrix(this Vector2 size) => new(
-    size.X, 0, 0,
-    0, size.Y, 0,
-    0, 0, 1
-    );
-}
-
-public struct Matrix33
-{
-    public float _11, _12, _13, _21, _22, _23, _31, _32, _33;
-
-    public static Matrix33 Identity => new(
-        1, 0, 0,
-        0, 1, 0,
-        0, 0, 1
-    );
-
-    public Matrix33(float m11, float m12, float m13, float m21, float m22, float m23, float m31, float m32, float m33)
-    {
-        _11 = m11; _12 = m12; _13 = m13; _21 = m21; _22 = m22; _23 = m23; _31 = m31; _32 = m32; _33 = m33;
-    }
-
-    public static Vector2 operator *(Matrix33 m, Vector2 v) => new(
-        (m._11 * v.X) + (m._12 * v.Y) + m._13,
-        (m._21 * v.X) + (m._22 * v.Y) + m._23
-    );
-
-    public static Matrix33 operator *(Matrix33 a, Matrix33 b) => new(
-        (a._11 * b._11) + (a._12 * b._21) + (a._13 * b._31),
-        (a._11 * b._12) + (a._12 * b._22) + (a._13 * b._32),
-        (a._11 * b._13) + (a._12 * b._23) + (a._13 * b._33),
-
-        (a._21 * b._11) + (a._22 * b._21) + (a._23 * b._31),
-        (a._21 * b._12) + (a._22 * b._22) + (a._23 * b._32),
-        (a._21 * b._13) + (a._22 * b._23) + (a._23 * b._33),
-
-        (a._31 * b._11) + (a._32 * b._21) + (a._33 * b._31),
-        (a._31 * b._12) + (a._32 * b._22) + (a._33 * b._32),
-        (a._31 * b._13) + (a._32 * b._23) + (a._33 * b._33)
-    );
-
-    public override string ToString() =>
-        $"({_11}, {_12}, {_13}{Environment.NewLine}"
-        + $"{_21}, {_22}, {_23}{Environment.NewLine}"
-        + $"{_31}, {_32}, {_33})";
-}
-
 public class Transform
 {
     public Entity Entity { get; init; }
@@ -238,6 +163,81 @@ public class Transform
     // public Matrix33 Matrix => ;
 }
 
+public struct Matrix22
+{
+    public float _11, _12, _21, _22;
+
+    public Matrix22(float m11, float m12, float m21, float m22)
+    {
+        _11 = m11; _12 = m12; _21 = m21; _22 = m22;
+    }
+
+    public static Vector2 operator *(Matrix22 matrix, Vector2 vector) => new(
+        (vector.X * matrix._11) + (vector.Y * matrix._12),
+        (vector.X * matrix._21) + (vector.Y * matrix._22));
+}
+
+public static class Matrix33Extensions
+{
+    public static Matrix33 ToTranslationMatrix(this Vector2 position) => new(
+    1, 0, position.X,
+    0, 1, position.Y,
+    0, 0, 1
+    );
+
+    public static Matrix33 ToRotationMatrix(this double radians) => new(
+    (float)Math.Cos(radians), (float)-Math.Sin(radians), 0,
+    (float)Math.Sin(radians), (float)Math.Cos(radians), 0,
+    0, 0, 1
+    );
+
+    public static Matrix33 ToScaleMatrix(this Vector2 size) => new(
+    size.X, 0, 0,
+    0, size.Y, 0,
+    0, 0, 1
+    );
+}
+
+public struct Matrix33
+{
+    public float _11, _12, _13, _21, _22, _23, _31, _32, _33;
+
+    public static Matrix33 Identity => new(
+        1, 0, 0,
+        0, 1, 0,
+        0, 0, 1
+    );
+
+    public Matrix33(float m11, float m12, float m13, float m21, float m22, float m23, float m31, float m32, float m33)
+    {
+        _11 = m11; _12 = m12; _13 = m13; _21 = m21; _22 = m22; _23 = m23; _31 = m31; _32 = m32; _33 = m33;
+    }
+
+    public static Vector2 operator *(Matrix33 m, Vector2 v) => new(
+        (m._11 * v.X) + (m._12 * v.Y) + m._13,
+        (m._21 * v.X) + (m._22 * v.Y) + m._23
+    );
+
+    public static Matrix33 operator *(Matrix33 a, Matrix33 b) => new(
+        (a._11 * b._11) + (a._12 * b._21) + (a._13 * b._31),
+        (a._11 * b._12) + (a._12 * b._22) + (a._13 * b._32),
+        (a._11 * b._13) + (a._12 * b._23) + (a._13 * b._33),
+
+        (a._21 * b._11) + (a._22 * b._21) + (a._23 * b._31),
+        (a._21 * b._12) + (a._22 * b._22) + (a._23 * b._32),
+        (a._21 * b._13) + (a._22 * b._23) + (a._23 * b._33),
+
+        (a._31 * b._11) + (a._32 * b._21) + (a._33 * b._31),
+        (a._31 * b._12) + (a._32 * b._22) + (a._33 * b._32),
+        (a._31 * b._13) + (a._32 * b._23) + (a._33 * b._33)
+    );
+
+    public override string ToString() =>
+        $"({_11}, {_12}, {_13}{Environment.NewLine}"
+        + $"{_21}, {_22}, {_23}{Environment.NewLine}"
+        + $"{_31}, {_32}, {_33})";
+}
+
 public struct Rectangle
 {
     public Vector2 Position { get; set; }
@@ -290,62 +290,6 @@ public class Polygon
     public static explicit operator Polygon(Rectangle r) => new(r.AsPoints(), Enumerable.Empty<Vector2>());
 }
 
-public struct Vector2
-{
-    public static Vector2 Right => new(1, 0);
-    public static Vector2 Left => new(-1, 0);
-    public static Vector2 Up => new(0, -1);
-    public static Vector2 Down => new(0, 1);
-    public static Vector2 Zero => new(0, 0);
-    public static Vector2 One => new(1, 1);
-
-    public float X { get; set; }
-    public float Y { get; set; }
-
-    public double Length => Math.Sqrt((X * X) + (Y * Y));
-    public Vector2 Normalized => this / Length;
-
-    public Vector2(float x, float y)
-    {
-        X = x;
-        Y = y;
-    }
-
-    public double DistanceTo(Vector2 other) => (other - this).Length;
-    public Vector2 DirectionTo(Vector2 other) => (other - this).Normalized;
-    public bool IsZero() => X.Abs() < 0.0001f && Y.Abs() < 0.0001f;
-    public Vector2 MultiplyElementWise(Vector2 other) => new(X * other.X, Y * other.Y);
-
-    public override string ToString() => $"({X};{Y})";
-
-    public static float Dot(Vector2 a, Vector2 b) => (a.X * b.X) + (a.Y * b.Y);
-    public static Vector2 Reflect(Vector2 vector, Vector2 normal) => vector - (2 * Dot(vector, normal) * normal);
-    public static Vector2 Average(IEnumerable<Vector2> vectors)
-    {
-        var average = Zero;
-        foreach (var vector in vectors)
-        {
-            average += vector;
-        }
-        return average / vectors.Count();
-    }
-    public static Vector2 Random()
-    {
-        return new Vector2(Mathf.RandomFloat(), Mathf.RandomFloat()).Normalized;
-    }
-
-    public static Vector2 operator +(Vector2 a, Vector2 b) => new(a.X + b.X, a.Y + b.Y);
-    public static Vector2 operator -(Vector2 a, Vector2 b) => new(a.X - b.X, a.Y - b.Y);
-    public static Vector2 operator -(Vector2 a) => new(-a.X, -a.Y);
-    public static Vector2 operator *(Vector2 a, int b) => new(a.X * b, a.Y * b);
-    public static Vector2 operator *(int b, Vector2 a) => new(a.X * b, a.Y * b);
-    public static Vector2 operator /(Vector2 a, int b) => new(a.X / b, a.Y / b);
-    public static Vector2 operator /(Vector2 a, double b) => new(a.X / (float)b, a.Y / (float)b);
-    public static Vector2 operator *(Vector2 a, float b) => new(a.X * b, a.Y * b);
-    public static Vector2 operator *(float b, Vector2 a) => new(a.X * b, a.Y * b);
-    public static Vector2 operator *(Vector2 a, double b) => new(a.X * (float)b, a.Y * (float)b);
-    public static Vector2 operator *(double b, Vector2 a) => new(a.X * (float)b, a.Y * (float)b);
-}
 
 public class Entity
 {

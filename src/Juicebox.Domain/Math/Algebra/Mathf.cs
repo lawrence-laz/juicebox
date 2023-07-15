@@ -1,5 +1,4 @@
 namespace JuiceboxEngine;
-
 public static class Mathf
 {
     private static Random _random = new();
@@ -157,3 +156,4 @@ public static class Mathf
     public static float Sin(float a) => (float)System.Math.Sin(a);
     public static float Cos(float a) => (float)System.Math.Cos(a);
 }
+

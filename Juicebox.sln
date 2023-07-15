@@ -11,6 +11,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{C9
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Breakout", "examples\Breakout\Breakout.csproj", "{95D9395D-5830-4088-A10A-1B301716CD7A}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{A51234FE-A669-41F7-BCBA-EF48C243FBBF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Juicebox.Tests", "tests\Juicebox.Tests\Juicebox.Tests.csproj", "{DE8DE49C-E63C-419B-BF2F-E966747B9020}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,9 +32,14 @@ Global
 		{95D9395D-5830-4088-A10A-1B301716CD7A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{95D9395D-5830-4088-A10A-1B301716CD7A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{95D9395D-5830-4088-A10A-1B301716CD7A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DE8DE49C-E63C-419B-BF2F-E966747B9020}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DE8DE49C-E63C-419B-BF2F-E966747B9020}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DE8DE49C-E63C-419B-BF2F-E966747B9020}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DE8DE49C-E63C-419B-BF2F-E966747B9020}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{DFB4C6D2-3EA8-44D3-BBCA-2CF97FEF9526} = {C87C0F8F-90A7-442F-A82D-51A59E77561B}
 		{95D9395D-5830-4088-A10A-1B301716CD7A} = {C9E3E502-7D0B-43EE-B386-55DE8CF90ECE}
+		{DE8DE49C-E63C-419B-BF2F-E966747B9020} = {A51234FE-A669-41F7-BCBA-EF48C243FBBF}
 	EndGlobalSection
 EndGlobal

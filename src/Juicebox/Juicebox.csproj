@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <!-- <LangVersion>preview</LangVersion> -->
+    <LangVersion>preview</LangVersion>
+    <EnablePreviewFeatures>true</EnablePreviewFeatures>
   </PropertyGroup>
 
   <ItemGroup>
@@ -41,6 +43,10 @@
  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
     <!-- <Message Text="Publishing for Linux 64 bit" /> -->
     <None Include="$(SolutionDir)\lib\linux-x64\**" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" />
+ </ItemGroup>
+
+ <ItemGroup>
+   <ProjectReference Include="..\Juicebox.Infrastructure\Juicebox.Infrastructure.csproj" />
  </ItemGroup>
 
 </Project>
